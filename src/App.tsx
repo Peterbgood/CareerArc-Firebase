@@ -18,8 +18,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const JOBS_PER_PAGE = 25;
+const APP_PIN = "3270";
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinInput, setPinInput] = useState('');
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,13 +35,24 @@ export default function App() {
   const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     const q = query(collection(db, "jobs"), orderBy("date", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setJobs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAuthenticated]);
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === APP_PIN) {
+      setIsAuthenticated(true);
+    } else {
+      alert("Incorrect PIN");
+      setPinInput('');
+    }
+  };
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -89,6 +103,28 @@ export default function App() {
     setEditingJob(null);
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <form onSubmit={handlePinSubmit} className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-xs text-center">
+          <div className="bg-slate-900 text-white w-10 h-10 flex items-center justify-center rounded-lg mx-auto mb-4 text-xl font-black">⚡</div>
+          <h1 className="text-lg font-black tracking-tighter uppercase mb-6">CareerArc Login</h1>
+          <input 
+            type="password" 
+            placeholder="PIN"
+            className="w-full border-2 border-slate-100 bg-slate-50 rounded-xl px-4 py-3 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-slate-900 transition-all"
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value)}
+            autoFocus
+          />
+          <button className="w-full mt-4 bg-slate-900 text-white font-black py-3 rounded-xl hover:bg-indigo-600 transition-all uppercase text-xs tracking-widest">
+            Unlock System
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 pb-10 font-sans">
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm">
@@ -104,42 +140,48 @@ export default function App() {
         </button>
       </header>
 
-      <main className="max-w-5xl mx-auto p-4">
-        {/* Compact 6-Card Summary Grid */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-          {[
-            { label: 'Total', val: jobs.length, filter: 'all', type: 'status' },
-            { label: 'Intv', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
-            { label: 'Ghost', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
-            { label: 'Rej', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
-            { label: 'Contr', val: jobs.filter(j => (j.type || j.Type || "").toLowerCase() === 'contract').length, filter: 'Contract', type: 'type' },
-            { label: 'Rem', val: jobs.filter(j => (j.location || j.Locations || "").toLowerCase() === 'remote').length, filter: 'Remote', type: 'location' }
-          ].map((stat) => (
-            <button 
-              key={stat.label}
-              onClick={() => {
-                if (stat.type === 'status') { setStatusFilter(stat.filter); setTypeFilter('all'); setLocationFilter('all'); }
-                else if (stat.type === 'type') { setTypeFilter(stat.filter); setStatusFilter('all'); setLocationFilter('all'); }
-                else { setLocationFilter(stat.filter); setStatusFilter('all'); setTypeFilter('all'); }
-                setCurrentPage(1);
-              }}
-              className={`py-2 px-1 border transition-all text-center rounded-lg ${
-                (statusFilter === stat.filter || locationFilter === stat.filter || typeFilter === stat.filter) 
-                ? 'bg-white border-slate-900 ring-1 ring-slate-900 shadow-sm' 
-                : 'bg-white border-slate-200'
-              }`}
-            >
-              <div className="text-xl font-black leading-none">{stat.val}</div>
-              <div className="text-[8px] font-black text-slate-400 uppercase mt-0.5">{stat.label}</div>
-            </button>
-          ))}
+      <main className="max-w-6xl mx-auto p-4">
+        {/* RESPONSIVE SUMMARY GRID */}
+        <div className="mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4 items-stretch">
+            {[
+                { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
+                { label: 'Interviewing', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
+                { label: 'Ghosted', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
+                { label: 'Rejected', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
+                { label: 'Contract', val: jobs.filter(j => (j.type || j.Type || "").toLowerCase() === 'contract').length, filter: 'Contract', type: 'type' },
+                { label: 'Remote', val: jobs.filter(j => (j.location || j.Locations || "").toLowerCase() === 'remote').length, filter: 'Remote', type: 'location' }
+            ].map((stat) => {
+                const isActive = stat.label !== 'Total Apps' && (statusFilter === stat.filter || locationFilter === stat.filter || typeFilter === stat.filter);
+                
+                return (
+                    <button 
+                    key={stat.label}
+                    onClick={() => {
+                        if (stat.type === 'status') { setStatusFilter(stat.filter); setTypeFilter('all'); setLocationFilter('all'); }
+                        else if (stat.type === 'type') { setTypeFilter(stat.filter); setStatusFilter('all'); setLocationFilter('all'); }
+                        else { setLocationFilter(stat.filter); setStatusFilter('all'); setTypeFilter('all'); }
+                        setCurrentPage(1);
+                    }}
+                    className={`py-4 px-2 border-2 transition-all text-center rounded-2xl h-full flex flex-col justify-center items-center bg-white ${
+                        isActive 
+                        ? 'border-slate-900 shadow-md' 
+                        : 'border-transparent hover:border-slate-200'
+                    }`}
+                    >
+                    <div className="text-2xl md:text-3xl font-black leading-none">{stat.val}</div>
+                    <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase mt-1.5 tracking-tight whitespace-nowrap">{stat.label}</div>
+                    </button>
+                );
+            })}
+            </div>
         </div>
 
         {/* Search Bar + Reset */}
         <div className="mb-4 flex gap-2">
           <input 
             className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-lg outline-none text-xs" 
-            placeholder="Search applications..." 
+            placeholder="Search company or title..." 
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           />
@@ -202,7 +244,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal with Salary & Type */}
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-xl p-6 shadow-xl">
@@ -224,8 +266,8 @@ export default function App() {
                 </select>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-slate-900 text-white font-bold py-2 rounded-lg text-xs hover:bg-blue-600">SAVE RECORD</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 text-[10px] font-bold text-slate-400">CANCEL</button>
+                <button type="submit" className="flex-1 bg-slate-900 text-white font-bold py-2 rounded-lg text-xs hover:bg-blue-600 transition-all">SAVE RECORD</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 text-[10px] font-bold text-slate-400 uppercase">CANCEL</button>
               </div>
             </form>
           </div>
