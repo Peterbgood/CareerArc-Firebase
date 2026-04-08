@@ -45,8 +45,6 @@ export default function App() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
   useEffect(() => {
@@ -66,8 +64,6 @@ export default function App() {
   const resetFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
-    setLocationFilter('all');
-    setTypeFilter('all');
     setDateFilter('all');
     setCurrentPage(1);
   };
@@ -101,14 +97,14 @@ export default function App() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = {
-      company: editingJob.company || editingJob.Company || '',
-      title: editingJob.title || editingJob.JobTitle || '',
-      date: editingJob.date || editingJob.DateApplied || '',
-      status: editingJob.status || editingJob.Status || 'Applied',
-      location: editingJob.location || editingJob.Locations || 'Remote',
-      url: editingJob.url || editingJob.URL || '',
-      salary: editingJob.salary || editingJob.Salary || '',
-      type: editingJob.type || editingJob.Type || 'Full-Time',
+      company: editingJob.company || '',
+      title: editingJob.title || '',
+      date: editingJob.date || '',
+      status: editingJob.status || 'Applied',
+      location: editingJob.location || 'Remote',
+      url: editingJob.url || '',
+      salary: editingJob.salary || '',
+      type: editingJob.type || 'Full-Time',
       createdAt: editingJob.createdAt || Date.now()
     };
     if (editingJob.id) {
@@ -150,10 +146,10 @@ export default function App() {
             {[
               { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
               { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
-              { label: 'Interviewing', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
-              { label: 'Int ➔ Rej', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewed ➔ rejected').length, filter: 'Interviewed ➔ Rejected', type: 'status' },
-              { label: 'Ghosted', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
-              { label: 'Rejected', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
+              { label: 'Interviewing', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
+              { label: 'Int ➔ Rej', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewed ➔ rejected').length, filter: 'Interviewed ➔ Rejected', type: 'status' },
+              { label: 'Ghosted', val: jobs.filter(j => (j.status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
+              { label: 'Rejected', val: jobs.filter(j => (j.status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
             ].map((stat) => (
               <button key={stat.label} onClick={() => { resetFilters(); if (stat.type === 'status') setStatusFilter(stat.filter); else if (stat.type === 'date') setDateFilter(stat.filter); setCurrentPage(1); }} className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || dateFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}>
                 <div className={`text-2xl md:text-3xl font-black ${stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
@@ -176,16 +172,16 @@ export default function App() {
               <div key={job.id} className="group flex items-start md:items-center justify-between p-3 md:p-2 md:px-3 hover:bg-slate-50 transition-colors">
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-bold text-[13px] text-slate-800 uppercase tracking-tight">{job.company || job.Company}</span>
+                    <span className="font-bold text-[13px] text-slate-800 uppercase tracking-tight">{job.company}</span>
                     <span className="text-slate-300 font-bold hidden md:inline">/</span>
-                    <span className="text-slate-500 font-medium text-[12px] italic truncate max-w-[180px] md:max-w-none">{job.title || job.JobTitle}</span>
-                    {(job.url || job.URL) && <a href={job.url || job.URL} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>}
-                    { (job.salary || job.Salary) && <span className="text-blue-600 font-black text-[10px] bg-blue-50 px-1 rounded">{job.salary || job.Salary}</span> }
+                    <span className="text-slate-500 font-medium text-[12px] italic truncate max-w-[180px] md:max-w-none">{job.title}</span>
+                    {job.url && <a href={job.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>}
+                    { job.salary && <span className="text-blue-600 font-black text-[10px] bg-blue-50 px-1 rounded">{job.salary}</span> }
                   </div>
                   <div className="flex flex-wrap gap-2 mt-2 items-center">
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-bold text-slate-400">{job.date || job.DateApplied}</span>
-                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100">{getDaysAgo(job.date || job.DateApplied)}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{job.date}</span>
+                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100">{getDaysAgo(job.date)}</span>
                     </div>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${ 
                         (job.status || "").toLowerCase() === 'interviewing' ? 'bg-green-100 text-green-700' : 
