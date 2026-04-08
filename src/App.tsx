@@ -47,6 +47,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all'); // NEW: Filter for "Today"
 
   useEffect(() => {
     if (pinInput.trim() === APP_PIN) setIsAuthenticated(true);
@@ -62,16 +63,18 @@ export default function App() {
     return () => unsubscribe();
   }, [isAuthenticated]);
 
-  // RESTORED: Reset Filters Function
   const resetFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
     setLocationFilter('all');
     setTypeFilter('all');
+    setDateFilter('all');
     setCurrentPage(1);
   };
 
   const sortedAndFilteredJobs = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
     return jobs
       .filter(j => {
         const company = (j.company || j.Company || "").toLowerCase();
@@ -79,19 +82,22 @@ export default function App() {
         const status = (j.status || j.Status || "Applied").toLowerCase();
         const location = (j.location || j.Locations || "Remote").toLowerCase();
         const type = (j.type || j.Type || "Full-Time").toLowerCase();
+        const jobDate = (j.date || j.DateApplied || "");
 
         const matchSearch = (company + title).includes(searchTerm.toLowerCase());
         const matchStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
         const matchLocation = locationFilter === 'all' || location === locationFilter.toLowerCase();
         const matchType = typeFilter === 'all' || type === typeFilter.toLowerCase();
-        return matchSearch && matchStatus && matchLocation && matchType;
+        const matchDate = dateFilter === 'all' || jobDate === todayStr;
+
+        return matchSearch && matchStatus && matchLocation && matchType && matchDate;
       })
       .sort((a, b) => {
         const dateA = new Date(a.date || a.DateApplied || 0).getTime();
         const dateB = new Date(b.date || b.DateApplied || 0).getTime();
-        return dateB - dateA; // Newest at top
+        return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, locationFilter, typeFilter]);
+  }, [jobs, searchTerm, statusFilter, locationFilter, typeFilter, dateFilter]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -137,6 +143,8 @@ export default function App() {
     );
   }
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 pb-10 font-sans">
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm">
@@ -157,23 +165,25 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
             {[
                 { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
+                { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
                 { label: 'Interviewing', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
                 { label: 'Ghosted', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
+                { label: 'Remote', val: jobs.filter(j => (j.location || j.Locations || "").toLowerCase() === 'remote').length, filter: 'Remote', type: 'location' },
                 { label: 'Rejected', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
-                { label: 'Contract', val: jobs.filter(j => (j.type || j.Type || "").toLowerCase() === 'contract').length, filter: 'Contract', type: 'type' },
-                { label: 'Remote', val: jobs.filter(j => (j.location || j.Locations || "").toLowerCase() === 'remote').length, filter: 'Remote', type: 'location' }
             ].map((stat) => (
                 <button 
                   key={stat.label}
                   onClick={() => {
-                    if (stat.type === 'status') { setStatusFilter(stat.filter); setTypeFilter('all'); setLocationFilter('all'); }
-                    else if (stat.type === 'type') { setTypeFilter(stat.filter); setStatusFilter('all'); setLocationFilter('all'); }
-                    else { setLocationFilter(stat.filter); setStatusFilter('all'); setTypeFilter('all'); }
+                    resetFilters(); // Clear others when picking a specific card
+                    if (stat.type === 'status') setStatusFilter(stat.filter);
+                    else if (stat.type === 'type') setTypeFilter(stat.filter);
+                    else if (stat.type === 'location') setLocationFilter(stat.filter);
+                    else if (stat.type === 'date') setDateFilter(stat.filter);
                     setCurrentPage(1);
                   }}
-                  className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || locationFilter === stat.filter || typeFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}
+                  className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || locationFilter === stat.filter || typeFilter === stat.filter || dateFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}
                 >
-                  <div className="text-2xl md:text-3xl font-black">{stat.val}</div>
+                  <div className={`text-2xl md:text-3xl font-black ${stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
                   <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-tight">{stat.label}</div>
                 </button>
             ))}
@@ -246,17 +256,22 @@ export default function App() {
               <input placeholder="Position Title" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.title || editingJob?.JobTitle || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
               <div className="grid grid-cols-2 gap-2">
                 <input placeholder="Salary Range" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.salary || editingJob?.Salary || ''} onChange={e => setEditingJob({...editingJob, salary: e.target.value})} />
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.type || editingJob?.Type || 'Full-Time'} onChange={e => setEditingJob({...editingJob, type: e.target.value})}>
-                  <option>Full-Time</option><option>Contract</option><option>Part-Time</option>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.location || editingJob?.Locations || 'Remote'} onChange={e => setEditingJob({...editingJob, location: e.target.value})}>
+                  <option>Remote</option>
+                  <option>Local</option>
+                  <option>Hybrid</option>
                 </select>
               </div>
               <input placeholder="Application URL" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.url || editingJob?.URL || ''} onChange={e => setEditingJob({...editingJob, url: e.target.value})} />
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.date || editingJob?.DateApplied || ''} onChange={e => setEditingJob({...editingJob, date: e.target.value})} />
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.status || editingJob?.Status || 'Applied'} onChange={e => setEditingJob({...editingJob, status: e.target.value})}>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.status || editingJob?.Status || 'Applied'} onChange={e => setEditingJob({...editingJob, status: e.target.value})}>
                   <option>Applied</option><option>Interviewing</option><option>Rejected</option><option>Ghosted</option>
                 </select>
               </div>
+              <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.type || editingJob?.Type || 'Full-Time'} onChange={e => setEditingJob({...editingJob, type: e.target.value})}>
+                <option>Full-Time</option><option>Contract</option><option>Part-Time</option>
+              </select>
               <div className="flex gap-2 pt-2">
                 <button type="submit" className="flex-1 bg-slate-900 text-white font-bold py-2 rounded-lg text-xs hover:bg-blue-600 transition-all uppercase">Save Record</button>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 text-[10px] font-bold text-slate-400 uppercase">Cancel</button>
