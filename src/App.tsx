@@ -34,6 +34,13 @@ export default function App() {
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
+  // Auto-Unlock Logic: Watch the pinInput and unlock instantly on match
+  useEffect(() => {
+    if (pinInput.trim() === APP_PIN) {
+      setIsAuthenticated(true);
+    }
+  }, [pinInput]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     const q = query(collection(db, "jobs"), orderBy("date", "desc"));
@@ -46,7 +53,7 @@ export default function App() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === APP_PIN) {
+    if (pinInput.trim() === APP_PIN) {
       setIsAuthenticated(true);
     } else {
       alert("Incorrect PIN");
@@ -112,6 +119,8 @@ export default function App() {
           <input 
             type="password" 
             placeholder="PIN"
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-full border-2 border-slate-100 bg-slate-50 rounded-xl px-4 py-3 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-slate-900 transition-all"
             value={pinInput}
             onChange={(e) => setPinInput(e.target.value)}
@@ -141,7 +150,7 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto p-4">
-        {/* RESPONSIVE SUMMARY GRID */}
+        {/* SUMMARY GRID */}
         <div className="mb-6">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4 items-stretch">
             {[
@@ -177,7 +186,7 @@ export default function App() {
             </div>
         </div>
 
-        {/* Search Bar + Reset */}
+        {/* Search & Reset */}
         <div className="mb-4 flex gap-2">
           <input 
             className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-lg outline-none text-xs" 
