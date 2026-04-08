@@ -139,7 +139,7 @@ export default function App() {
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-2">
           <div className="bg-slate-900 text-white px-2 py-1 rounded text-sm font-black">⚡</div>
-          <h1 className="text-sm font-black tracking-tighter uppercase">CareerArc</h1>
+          <h1 className="text-sm font-black tracking-tighter uppercase">CareerArc v2</h1>
         </div>
         <button 
           onClick={() => { setEditingJob({ date: new Date().toISOString().split('T')[0], status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }}
