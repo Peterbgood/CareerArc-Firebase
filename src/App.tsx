@@ -24,7 +24,7 @@ const getDaysAgo = (dateString: string) => {
   if (!dateString) return '';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const appliedDate = new Date(dateString);
+  const appliedDate = new Date(dateString.replace(/-/g, '\/'));
   appliedDate.setHours(0, 0, 0, 0);
   const diffTime = today.getTime() - appliedDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -47,7 +47,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all'); // NEW: Filter for "Today"
+  const [dateFilter, setDateFilter] = useState('all');
 
   useEffect(() => {
     if (pinInput.trim() === APP_PIN) setIsAuthenticated(true);
@@ -74,30 +74,26 @@ export default function App() {
 
   const sortedAndFilteredJobs = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-
     return jobs
       .filter(j => {
         const company = (j.company || j.Company || "").toLowerCase();
         const title = (j.title || j.JobTitle || "").toLowerCase();
         const status = (j.status || j.Status || "Applied").toLowerCase();
-        const location = (j.location || j.Locations || "Remote").toLowerCase();
-        const type = (j.type || j.Type || "Full-Time").toLowerCase();
         const jobDate = (j.date || j.DateApplied || "");
 
         const matchSearch = (company + title).includes(searchTerm.toLowerCase());
         const matchStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
-        const matchLocation = locationFilter === 'all' || location === locationFilter.toLowerCase();
-        const matchType = typeFilter === 'all' || type === typeFilter.toLowerCase();
         const matchDate = dateFilter === 'all' || jobDate === todayStr;
 
-        return matchSearch && matchStatus && matchLocation && matchType && matchDate;
+        return matchSearch && matchStatus && matchDate;
       })
       .sort((a, b) => {
-        const dateA = new Date(a.date || a.DateApplied || 0).getTime();
-        const dateB = new Date(b.date || b.DateApplied || 0).getTime();
+        const dateA = new Date((a.date || a.DateApplied || "1970-01-01").replace(/-/g, '\/')).getTime();
+        const dateB = new Date((b.date || b.DateApplied || "1970-01-01").replace(/-/g, '\/')).getTime();
+        if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, locationFilter, typeFilter, dateFilter]);
+  }, [jobs, searchTerm, statusFilter, dateFilter]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -112,7 +108,8 @@ export default function App() {
       location: editingJob.location || editingJob.Locations || 'Remote',
       url: editingJob.url || editingJob.URL || '',
       salary: editingJob.salary || editingJob.Salary || '',
-      type: editingJob.type || editingJob.Type || 'Full-Time'
+      type: editingJob.type || editingJob.Type || 'Full-Time',
+      createdAt: editingJob.createdAt || Date.now()
     };
     if (editingJob.id) {
       await updateDoc(doc(db, "jobs", editingJob.id), data);
@@ -129,15 +126,7 @@ export default function App() {
         <form onSubmit={(e) => e.preventDefault()} className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-xs text-center">
           <div className="bg-slate-900 text-white w-10 h-10 flex items-center justify-center rounded-lg mx-auto mb-4 text-xl font-black">⚡</div>
           <h1 className="text-lg font-black tracking-tighter uppercase mb-6">CareerArc Login</h1>
-          <input 
-            type="password" 
-            placeholder="PIN"
-            inputMode="numeric"
-            className="w-full border-2 border-slate-100 bg-slate-50 rounded-xl px-4 py-3 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-slate-900 transition-all"
-            value={pinInput}
-            onChange={(e) => setPinInput(e.target.value)}
-            autoFocus
-          />
+          <input type="password" placeholder="PIN" inputMode="numeric" className="w-full border-2 border-slate-100 bg-slate-50 rounded-xl px-4 py-3 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-slate-900 transition-all" value={pinInput} onChange={(e) => setPinInput(e.target.value)} autoFocus />
         </form>
       </div>
     );
@@ -152,42 +141,26 @@ export default function App() {
           <div className="bg-slate-900 text-white px-2 py-1 rounded text-sm font-black">⚡</div>
           <h1 className="text-sm font-black tracking-tighter uppercase">Job Tracker</h1>
         </div>
-        <button 
-          onClick={() => { setEditingJob({ date: new Date().toISOString().split('T')[0], status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }}
-          className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-600 transition-all"
-        >
-          + NEW APP
-        </button>
+        <button onClick={() => { setEditingJob({ date: new Date().toISOString().split('T')[0], status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-600 transition-all">+ NEW APP</button>
       </header>
 
       <main className="max-w-6xl mx-auto p-4">
         <div className="mb-6">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
             {[
-                { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
-                { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
-                { label: 'Interviewing', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
-                { label: 'Ghosted', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
-                { label: 'Remote', val: jobs.filter(j => (j.location || j.Locations || "").toLowerCase() === 'remote').length, filter: 'Remote', type: 'location' },
-                { label: 'Rejected', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
+              { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
+              { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
+              { label: 'Interviewing', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
+              { label: 'Int ➔ Rej', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'interviewed ➔ rejected').length, filter: 'Interviewed ➔ Rejected', type: 'status' },
+              { label: 'Ghosted', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
+              { label: 'Rejected', val: jobs.filter(j => (j.status || j.Status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
             ].map((stat) => (
-                <button 
-                  key={stat.label}
-                  onClick={() => {
-                    resetFilters(); // Clear others when picking a specific card
-                    if (stat.type === 'status') setStatusFilter(stat.filter);
-                    else if (stat.type === 'type') setTypeFilter(stat.filter);
-                    else if (stat.type === 'location') setLocationFilter(stat.filter);
-                    else if (stat.type === 'date') setDateFilter(stat.filter);
-                    setCurrentPage(1);
-                  }}
-                  className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || locationFilter === stat.filter || typeFilter === stat.filter || dateFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}
-                >
-                  <div className={`text-2xl md:text-3xl font-black ${stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
-                  <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-tight">{stat.label}</div>
-                </button>
+              <button key={stat.label} onClick={() => { resetFilters(); if (stat.type === 'status') setStatusFilter(stat.filter); else if (stat.type === 'date') setDateFilter(stat.filter); setCurrentPage(1); }} className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || dateFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}>
+                <div className={`text-2xl md:text-3xl font-black ${stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
+                <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-tight">{stat.label}</div>
+              </button>
             ))}
-            </div>
+          </div>
         </div>
 
         <div className="mb-4 flex gap-2">
@@ -206,29 +179,26 @@ export default function App() {
                     <span className="font-bold text-[13px] text-slate-800 uppercase tracking-tight">{job.company || job.Company}</span>
                     <span className="text-slate-300 font-bold hidden md:inline">/</span>
                     <span className="text-slate-500 font-medium text-[12px] italic truncate max-w-[180px] md:max-w-none">{job.title || job.JobTitle}</span>
-                    {(job.url || job.URL) && (
-                      <a href={job.url || job.URL} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 shrink-0">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      </a>
-                    )}
+                    {(job.url || job.URL) && <a href={job.url || job.URL} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>}
                     { (job.salary || job.Salary) && <span className="text-blue-600 font-black text-[10px] bg-blue-50 px-1 rounded">{job.salary || job.Salary}</span> }
                   </div>
-                  
                   <div className="flex flex-wrap gap-2 mt-2 items-center">
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[10px] font-bold text-slate-400">{job.date || job.DateApplied}</span>
-                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100">
-                        {getDaysAgo(job.date || job.DateApplied)}
-                      </span>
+                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100">{getDaysAgo(job.date || job.DateApplied)}</span>
                     </div>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${ (job.status || job.Status || "").toLowerCase() === 'interviewing' ? 'bg-green-100 text-green-700' : (job.status || job.Status || "").toLowerCase() === 'rejected' ? 'bg-red-100 text-red-700' : (job.status || job.Status || "").toLowerCase() === 'ghosted' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600' }`}>
-                      {job.status || job.Status || 'Applied'}
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${ 
+                        (job.status || "").toLowerCase() === 'interviewing' ? 'bg-green-100 text-green-700' : 
+                        (job.status || "").toLowerCase() === 'interviewed ➔ rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                        (job.status || "").toLowerCase() === 'rejected' ? 'bg-red-100 text-red-700' : 
+                        (job.status || "").toLowerCase() === 'ghosted' ? 'bg-slate-800 text-white' : 
+                        'bg-slate-100 text-slate-600' }`}>
+                      {job.status || 'Applied'}
                     </span>
-                    <span className="text-[9px] font-bold text-blue-500 uppercase">{job.location || job.Locations || 'Remote'}</span>
-                    <span className="text-[9px] font-bold text-slate-400 border-l border-slate-200 pl-2 uppercase">{job.type || job.Type || 'FT'}</span>
+                    <span className="text-[9px] font-bold text-blue-500 uppercase">{job.location || 'Remote'}</span>
+                    <span className="text-[9px] font-bold text-slate-400 border-l border-slate-200 pl-2 uppercase">{job.type || 'FT'}</span>
                   </div>
                 </div>
-
                 <div className="flex gap-1 shrink-0 md:opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => { setEditingJob(job); setIsModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-slate-900"><svg className="w-4 h-4 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
                   <button onClick={() => deleteDoc(doc(db, "jobs", job.id))} className="p-1.5 text-slate-300 hover:text-red-500"><svg className="w-4 h-4 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
@@ -252,26 +222,23 @@ export default function App() {
           <div className="bg-white w-full max-w-sm rounded-xl p-6 shadow-xl">
             <h2 className="text-sm font-black mb-4 uppercase">App Record</h2>
             <form onSubmit={handleSave} className="space-y-3">
-              <input placeholder="Company" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.company || editingJob?.Company || ''} onChange={e => setEditingJob({...editingJob, company: e.target.value})} />
-              <input placeholder="Position Title" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.title || editingJob?.JobTitle || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
+              <input placeholder="Company" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.company || ''} onChange={e => setEditingJob({...editingJob, company: e.target.value})} />
+              <input placeholder="Position Title" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.title || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
               <div className="grid grid-cols-2 gap-2">
-                <input placeholder="Salary Range" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.salary || editingJob?.Salary || ''} onChange={e => setEditingJob({...editingJob, salary: e.target.value})} />
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.location || editingJob?.Locations || 'Remote'} onChange={e => setEditingJob({...editingJob, location: e.target.value})}>
-                  <option>Remote</option>
-                  <option>Local</option>
-                  <option>Hybrid</option>
+                <input placeholder="Salary Range" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.salary || ''} onChange={e => setEditingJob({...editingJob, salary: e.target.value})} />
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.location || 'Remote'} onChange={e => setEditingJob({...editingJob, location: e.target.value})}><option>Remote</option><option>Local</option><option>Hybrid</option></select>
+              </div>
+              <input placeholder="Application URL" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.url || ''} onChange={e => setEditingJob({...editingJob, url: e.target.value})} />
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.date || ''} onChange={e => setEditingJob({...editingJob, date: e.target.value})} />
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.status || 'Applied'} onChange={e => setEditingJob({...editingJob, status: e.target.value})}>
+                  <option>Applied</option>
+                  <option>Interviewing</option>
+                  <option>Interviewed ➔ Rejected</option>
+                  <option>Rejected</option>
+                  <option>Ghosted</option>
                 </select>
               </div>
-              <input placeholder="Application URL" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.url || editingJob?.URL || ''} onChange={e => setEditingJob({...editingJob, url: e.target.value})} />
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.date || editingJob?.DateApplied || ''} onChange={e => setEditingJob({...editingJob, date: e.target.value})} />
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none font-bold" value={editingJob?.status || editingJob?.Status || 'Applied'} onChange={e => setEditingJob({...editingJob, status: e.target.value})}>
-                  <option>Applied</option><option>Interviewing</option><option>Rejected</option><option>Ghosted</option>
-                </select>
-              </div>
-              <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" value={editingJob?.type || editingJob?.Type || 'Full-Time'} onChange={e => setEditingJob({...editingJob, type: e.target.value})}>
-                <option>Full-Time</option><option>Contract</option><option>Part-Time</option>
-              </select>
               <div className="flex gap-2 pt-2">
                 <button type="submit" className="flex-1 bg-slate-900 text-white font-bold py-2 rounded-lg text-xs hover:bg-blue-600 transition-all uppercase">Save Record</button>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 text-[10px] font-bold text-slate-400 uppercase">Cancel</button>
