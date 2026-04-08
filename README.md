@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+CareerArc | Job Search Tracker
+A high-performance, minimalist React + Firebase dashboard designed to track job applications with zero friction. Built with a focus on speed, mobile responsiveness, and clean typography.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+⚡ Features
+Real-time Sync: Powered by Firebase Firestore for instant updates across devices.
 
-Currently, two official plugins are available:
+Smart Filtering: One-tap filtering via the Summary Cards (Interviewing, Ghosted, Remote, etc.).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Responsive Design:
 
-## React Compiler
+Desktop: 6-column high-density grid.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Mobile: 2-column stacked grid for easy thumb-tapping.
 
-## Expanding the ESLint configuration
+Security: PIN-protected access to keep your search data private.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Pagination: Smooth handling of large application volumes (25 per page).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Clean UI: Tailwind CSS implementation with a "Utility-First" aesthetic.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+🛠️ Tech Stack
+Framework: React (TypeScript)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Styling: Tailwind CSS
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Database: Firebase Firestore
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Icons: Heroicons (SVG)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+🚀 Getting Started
+1. Prerequisites
+Node.js installed.
+
+A Firebase project set up at console.firebase.google.com.
+
+2. Installation
+Bash
+# Clone the repository
+git clone https://github.com/yourusername/career-arc.git
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+3. Environment Setup
+The current configuration uses a direct firebaseConfig object within App.tsx. For production, it is recommended to move these to a .env file:
+
+Code snippet
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+📂 Project Structure
+App.tsx: Main application logic, Firebase integration, and UI components.
+
+Summary Cards: Dynamic calculation of job statuses using useMemo.
+
+Job List: Conditional rendering for different status badges (Green for Interviewing, Red for Rejected, etc.).
+
+Modal System: Unified form for adding and editing job records.
+
+📝 Usage Tips
+Resetting: Use the "Reset" button to clear all search terms and status filters simultaneously.
+
+Direct Links: Click the external link icon next to a job title to jump straight to the original posting.
+
+PIN Access: The default access PIN is set to 3270 (Change this in the APP_PIN constant).
+
+⚖️ License
+MIT License - Feel free to use this to land your next big role!
