@@ -20,14 +20,21 @@ const db = getFirestore(app);
 const JOBS_PER_PAGE = 25;
 const APP_PIN = "3270";
 
+// Helper to get local YYYY-MM-DD string
+const getLocalTodayStr = () => new Date().toLocaleDateString('en-CA');
+
 const getDaysAgo = (dateString: string) => {
   if (!dateString) return '';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  
+  // Use hyphens and avoid T00:00:00 to ensure local time parsing
   const appliedDate = new Date(dateString.replace(/-/g, '\/'));
   appliedDate.setHours(0, 0, 0, 0);
+  
   const diffTime = today.getTime() - appliedDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
   if (diffDays < 0) return 'Future'; 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
@@ -69,7 +76,7 @@ export default function App() {
   };
 
   const sortedAndFilteredJobs = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalTodayStr();
     return jobs
       .filter(j => {
         const company = (j.company || j.Company || "").toLowerCase();
@@ -128,7 +135,7 @@ export default function App() {
     );
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalTodayStr();
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 pb-10 font-sans">
@@ -137,7 +144,7 @@ export default function App() {
           <div className="bg-slate-900 text-white px-2 py-1 rounded text-sm font-black">⚡</div>
           <h1 className="text-sm font-black tracking-tighter uppercase">Job Tracker</h1>
         </div>
-        <button onClick={() => { setEditingJob({ date: new Date().toISOString().split('T')[0], status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-600 transition-all">+ NEW APP</button>
+        <button onClick={() => { setEditingJob({ date: getLocalTodayStr(), status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-600 transition-all">+ NEW APP</button>
       </header>
 
       <main className="max-w-6xl mx-auto p-4">
