@@ -20,21 +20,16 @@ const db = getFirestore(app);
 const JOBS_PER_PAGE = 25;
 const APP_PIN = "3270";
 
-// Helper to get local YYYY-MM-DD string
 const getLocalTodayStr = () => new Date().toLocaleDateString('en-CA');
 
 const getDaysAgo = (dateString: string) => {
   if (!dateString) return '';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
-  // Use hyphens and avoid T00:00:00 to ensure local time parsing
   const appliedDate = new Date(dateString.replace(/-/g, '\/'));
   appliedDate.setHours(0, 0, 0, 0);
-  
   const diffTime = today.getTime() - appliedDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
   if (diffDays < 0) return 'Future'; 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
@@ -53,6 +48,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
 
   useEffect(() => {
     if (pinInput.trim() === APP_PIN) setIsAuthenticated(true);
@@ -72,6 +68,7 @@ export default function App() {
     setSearchTerm('');
     setStatusFilter('all');
     setDateFilter('all');
+    setLocationFilter('all');
     setCurrentPage(1);
   };
 
@@ -83,12 +80,14 @@ export default function App() {
         const title = (j.title || j.JobTitle || "").toLowerCase();
         const status = (j.status || j.Status || "Applied").toLowerCase();
         const jobDate = (j.date || j.DateApplied || "");
+        const location = (j.location || "Remote").toLowerCase();
 
         const matchSearch = (company + title).includes(searchTerm.toLowerCase());
         const matchStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
         const matchDate = dateFilter === 'all' || jobDate === todayStr;
+        const matchLocation = locationFilter === 'all' || location === locationFilter.toLowerCase();
 
-        return matchSearch && matchStatus && matchDate;
+        return matchSearch && matchStatus && matchDate && matchLocation;
       })
       .sort((a, b) => {
         const dateA = new Date((a.date || a.DateApplied || "1970-01-01").replace(/-/g, '\/')).getTime();
@@ -96,7 +95,7 @@ export default function App() {
         if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, dateFilter]);
+  }, [jobs, searchTerm, statusFilter, dateFilter, locationFilter]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -147,20 +146,35 @@ export default function App() {
         <button onClick={() => { setEditingJob({ date: getLocalTodayStr(), status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-600 transition-all">+ NEW APP</button>
       </header>
 
-      <main className="max-w-6xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4">
         <div className="mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-3">
             {[
-              { label: 'Total Apps', val: jobs.length, filter: 'all', type: 'status' },
+              { label: 'Total', val: jobs.length, filter: 'all', type: 'status' },
               { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
-              { label: 'Interviewing', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
-              { label: 'Int ➔ Rej', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewed ➔ rejected').length, filter: 'Interviewed ➔ Rejected', type: 'status' },
-              { label: 'Ghosted', val: jobs.filter(j => (j.status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
-              { label: 'Rejected', val: jobs.filter(j => (j.status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
+              { label: 'Local', val: jobs.filter(j => (j.location || "").toLowerCase() === 'local').length, filter: 'local', type: 'location' },
+              { label: 'Remote', val: jobs.filter(j => (j.location || "").toLowerCase() === 'remote').length, filter: 'remote', type: 'location' },
+              { label: 'Intv', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
+              { label: 'Int➔Rej', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewed ➔ rejected').length, filter: 'Interviewed ➔ Rejected', type: 'status' },
+              { label: 'Ghost', val: jobs.filter(j => (j.status || "").toLowerCase() === 'ghosted').length, filter: 'Ghosted', type: 'status' },
+              { label: 'Rej', val: jobs.filter(j => (j.status || "").toLowerCase() === 'rejected').length, filter: 'Rejected', type: 'status' },
             ].map((stat) => (
-              <button key={stat.label} onClick={() => { resetFilters(); if (stat.type === 'status') setStatusFilter(stat.filter); else if (stat.type === 'date') setDateFilter(stat.filter); setCurrentPage(1); }} className={`py-4 px-2 border-2 transition-all text-center rounded-2xl bg-white ${ (statusFilter === stat.filter || dateFilter === stat.filter) ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' }`}>
-                <div className={`text-2xl md:text-3xl font-black ${stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
-                <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-tight">{stat.label}</div>
+              <button 
+                key={stat.label} 
+                onClick={() => { 
+                  resetFilters(); 
+                  if (stat.type === 'status') setStatusFilter(stat.filter); 
+                  else if (stat.type === 'date') setDateFilter(stat.filter); 
+                  else if (stat.type === 'location') setLocationFilter(stat.filter);
+                  setCurrentPage(1); 
+                }} 
+                className={`py-3 px-1 border-2 transition-all text-center rounded-xl bg-white ${ 
+                  (statusFilter === stat.filter || dateFilter === stat.filter || (stat.type === 'location' && locationFilter === stat.filter)) 
+                  ? 'border-slate-900 shadow-md' : 'border-transparent hover:border-slate-200' 
+                }`}
+              >
+                <div className={`text-xl md:text-2xl font-black ${stat.label === 'Local' || stat.label === 'Remote' ? 'text-blue-600' : stat.label === 'Today' ? 'text-indigo-600' : ''}`}>{stat.val}</div>
+                <div className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-tight truncate">{stat.label}</div>
               </button>
             ))}
           </div>
