@@ -84,7 +84,7 @@ export default function App() {
   };
 
   const handleStatClick = (type: string, val: string) => {
-    resetFilters(); // Clear everything first
+    resetFilters();
     if (type === 'status') setStatusFilter(val);
     if (type === 'date') setDateFilter(val);
     setCurrentPage(1);
@@ -139,6 +139,8 @@ export default function App() {
     setEditingJob(null);
   };
 
+  const getCount = (key: string, val: string) => jobs.filter(j => (j[key] || "").toLowerCase() === val.toLowerCase()).length;
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
@@ -147,14 +149,14 @@ export default function App() {
           <h1 className="text-2xl font-black mb-8">Job Tracker</h1>
           <div className="flex justify-center gap-3 mb-10">
             {[0, 1, 2, 3].map(i => (
-              <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-200 bg-white text-slate-300' : 'border-slate-100 bg-white'}`}>
+              <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-300 bg-white text-slate-400' : 'border-slate-100 bg-white'}`}>
                 {pinInput[i] ? '●' : ''}
               </div>
             ))}
           </div>
           <div className="grid grid-cols-3 gap-3 px-4">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'del'].map((btn, idx) => (
-              <button key={idx} onClick={() => { if(btn==='del') setPinInput(p=>p.slice(0,-1)); else if(btn!=='') if(pinInput.length<4) setPinInput(p=>p+btn); }} className={`h-14 rounded-xl font-bold transition-all ${btn === '' ? 'opacity-0' : 'bg-white border border-slate-100 active:scale-95 hover:bg-slate-50'}`}>
+              <button key={idx} onClick={() => { if(btn==='del') setPinInput(p=>p.slice(0,-1)); else if(btn!=='') if(pinInput.length<4) setPinInput(p=>p+btn); }} className={`h-14 rounded-xl font-bold transition-all ${btn === '' ? 'opacity-0 cursor-default' : 'bg-white border border-slate-100 active:scale-95 hover:bg-slate-50'}`}>
                 {btn === 'del' ? '←' : btn}
               </button>
             ))}
@@ -165,7 +167,6 @@ export default function App() {
   }
 
   const todayStr = getLocalTodayStr();
-  const getCount = (key: string, val: string) => jobs.filter(j => (j[key] || "").toLowerCase() === val.toLowerCase()).length;
 
   return (
     <div className="min-h-screen bg-[#f9fafb] text-slate-900 pb-20 font-sans">
@@ -175,14 +176,12 @@ export default function App() {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 md:p-8">
-        {/* Stats Grid - Background logic strictly exclusive */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Total', val: jobs.length, filter: 'all', type: 'status' },
-            { label: 'Today', val: jobs.filter(j => (j.date || j.DateApplied) === todayStr).length, filter: 'today', type: 'date' },
+            { label: 'Today', val: jobs.filter(j => (j.date) === todayStr).length, filter: 'today', type: 'date' },
             { label: 'Intv', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
           ].map((stat) => {
-            // Precise active check
             const isActive = stat.filter === 'all' 
               ? (statusFilter === 'all' && dateFilter === 'all' && !searchTerm && locationFilter === 'all' && typeFilter === 'all')
               : (stat.type === 'status' ? statusFilter === stat.filter : dateFilter === stat.filter);
@@ -197,7 +196,6 @@ export default function App() {
           })}
         </div>
 
-        {/* Search Bar */}
         <div className="relative mb-8">
           <input className="w-full bg-white border border-slate-200 pl-6 pr-14 py-4 rounded-[24px] outline-none focus:border-slate-400 transition-all text-sm font-semibold shadow-sm" 
             placeholder="Search company, title..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
@@ -206,10 +204,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 mb-10">
           {[
             { label: 'Remote', val: 'remote', type: 'location', count: getCount('location', 'remote') },
+            { label: 'Local', val: 'local', type: 'location', count: getCount('location', 'local') },
             { label: 'Contract', val: 'contract', type: 'type', count: getCount('type', 'contract') },
             { label: 'Intv ➔ Rej', val: 'interviewed ➔ rejected', type: 'status', count: getCount('status', 'interviewed ➔ rejected') },
             { label: 'Rejected', val: 'rejected', type: 'status', count: getCount('status', 'rejected') },
@@ -227,12 +225,11 @@ export default function App() {
           ))}
           {isFiltered && (
             <button onClick={resetFilters} className="px-4 py-2 rounded-full text-[10px] font-black text-rose-500 uppercase border border-rose-100 bg-rose-50 hover:bg-rose-100 transition-colors">
-              Reset Filters
+              Reset
             </button>
           )}
         </div>
 
-        {/* List */}
         <div className="space-y-6">
           {loading ? <div className="p-10 text-center text-[10px] font-black text-slate-300 animate-pulse">SYNCING...</div> : sortedAndFilteredJobs.length === 0 ? <div className="p-10 text-center text-slate-400 text-sm italic">Empty.</div> : 
             paginatedJobs.map(job => (
@@ -258,7 +255,6 @@ export default function App() {
             ))}
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-3 mt-12">
             <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-6 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-20 text-slate-400">Prev</button>
@@ -268,7 +264,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-md rounded-[40px] p-8 shadow-2xl my-auto">
