@@ -44,12 +44,24 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAdminTools, setShowAdminTools] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+
+  // Secret Toggle: Ctrl + Shift + E
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'E') {
+        setShowAdminTools(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   useEffect(() => {
     if (pinInput.length === 4) {
@@ -77,6 +89,33 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [isAuthenticated]);
+
+  const downloadCSV = () => {
+    if (jobs.length === 0) return;
+    const headers = ["Company", "Title", "Date", "Status", "Location", "Type", "Salary", "URL"];
+    const csvContent = [
+      headers.join(","),
+      ...jobs.map(j => [
+        `"${(j.company || "").replace(/"/g, '""')}"`,
+        `"${(j.title || "").replace(/"/g, '""')}"`,
+        j.date,
+        j.status,
+        j.location,
+        j.type,
+        `"${(j.salary || "").replace(/"/g, '""')}"`,
+        j.url
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `job_export_${getLocalTodayStr()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const resetFilters = () => {
     setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setLocationFilter('all'); setTypeFilter('all');
@@ -144,9 +183,10 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
+        <div className="w-full max-w-xs text-center">
           <div className="w-16 h-16 bg-black text-white flex items-center justify-center rounded-3xl mx-auto mb-4 text-2xl font-black shadow-xl">JT</div>
           <h1 className="text-2xl font-black mb-8">Job Tracker</h1>
+          
           <div className="flex justify-center gap-3 mb-10">
             {[0, 1, 2, 3].map(i => (
               <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-300 bg-white text-slate-400' : 'border-slate-100 bg-white'}`}>
@@ -154,10 +194,19 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-3 gap-3 px-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'del'].map((btn, idx) => (
-              <button key={idx} onClick={() => { if(btn==='del') setPinInput(p=>p.slice(0,-1)); else if(btn!=='') if(pinInput.length<4) setPinInput(p=>p+btn); }} className={`h-14 rounded-xl font-bold transition-all ${btn === '' ? 'opacity-0 cursor-default' : 'bg-white border border-slate-100 active:scale-95 hover:bg-slate-50'}`}>
-                {btn === 'del' ? '←' : btn}
+
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'CLR', 0, 'DEL'].map((btn, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => { 
+                  if(btn === 'DEL') setPinInput(p => p.slice(0, -1)); 
+                  else if(btn === 'CLR') setPinInput('');
+                  else if(typeof btn === 'number') if(pinInput.length < 4) setPinInput(p => p + btn); 
+                }} 
+                className={`h-14 rounded-xl font-bold transition-all text-sm bg-white border border-slate-100 active:scale-95 hover:bg-slate-50 ${btn === 'DEL' || btn === 'CLR' ? 'text-rose-500 text-[10px]' : 'text-slate-600'}`}
+              >
+                {btn === 'DEL' ? '←' : btn}
               </button>
             ))}
           </div>
@@ -172,10 +221,16 @@ export default function App() {
     <div className="min-h-screen bg-[#f9fafb] text-slate-900 pb-20 font-sans">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
         <h1 className="text-lg font-black tracking-tighter uppercase italic">Job Tracker</h1>
-        <button onClick={() => { setEditingJob({ date: getLocalTodayStr(), status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-black text-white px-5 py-2.5 rounded-full font-bold text-[11px] uppercase tracking-widest">+ Add Entry</button>
+        <div className="flex gap-2">
+          {showAdminTools && (
+             <button onClick={downloadCSV} className="bg-white border border-slate-200 text-slate-500 px-4 py-2.5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Export CSV</button>
+          )}
+          <button onClick={() => { setEditingJob({ date: getLocalTodayStr(), status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-black text-white px-5 py-2.5 rounded-full font-bold text-[11px] uppercase tracking-widest">+ Add Entry</button>
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto p-4 md:p-8">
+        {/* Rest of your existing Main UI code... */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Total', val: jobs.length, filter: 'all', type: 'status' },
