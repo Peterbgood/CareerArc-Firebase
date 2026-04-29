@@ -66,18 +66,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
+  // Strict PIN check logic
   useEffect(() => {
     if (pinInput.length === 4) {
-      if (pinInput === APP_PIN) setIsAuthenticated(true);
-      else setTimeout(() => setPinInput(''), 400);
+      if (pinInput === APP_PIN) {
+        setIsAuthenticated(true);
+      } else {
+        // Flash red or reset on wrong PIN
+        const timer = setTimeout(() => setPinInput(''), 400);
+        return () => clearTimeout(timer);
+      }
     }
   }, [pinInput]);
 
   useEffect(() => {
     if (isAuthenticated) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') { if (pinInput.length < 4) setPinInput(prev => prev + e.key); }
-      else if (e.key === 'Backspace') { setPinInput(prev => prev.slice(0, -1)); }
+      if (e.key >= '0' && e.key <= '9') { 
+        if (pinInput.length < 4) setPinInput(prev => prev + e.key); 
+      }
+      else if (e.key === 'Backspace') { 
+        setPinInput(prev => prev.slice(0, -1)); 
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -89,6 +99,9 @@ export default function App() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setJobs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
+    }, (error) => {
+        console.error("Firebase error:", error);
+        setLoading(false);
     });
     return () => unsubscribe();
   }, [isAuthenticated]);
@@ -199,15 +212,13 @@ export default function App() {
     return jobs.filter(j => {
       const dbVal = (j[key] || "").toString().trim().toLowerCase();
       const target = val.trim().toLowerCase();
-      // Switched to exact match for status to prevent "Rejected" from catching "Interviewed ➔ Rejected"
-      if (key === 'status') return dbVal === target;
       return dbVal === target;
     }).length;
   };
 
   const todayStr = getLocalTodayStr();
 
-  // Distinct buckets for the math and UI
+  // Distinct buckets for UI and math
   const rejectedCount = getCount('status', 'rejected'); 
   const ghostedCount = getCount('status', 'ghosted');   
   const intvRejCount = getCount('status', 'interviewed ➔ rejected'); 
@@ -215,6 +226,45 @@ export default function App() {
 
   const activeCount = jobs.length - (rejectedCount + ghostedCount + intvRejCount + noResponseCount);
 
+  // AUTH GUARD COMPONENT
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
+        <div className="w-full max-w-xs text-center">
+          <div className="w-16 h-16 bg-black text-white flex items-center justify-center rounded-3xl mx-auto mb-4 text-2xl font-black shadow-xl">JT</div>
+          <h1 className="text-2xl font-black mb-8">Job Tracker</h1>
+          
+          <div className="flex justify-center gap-3 mb-10">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-300 bg-white text-slate-400' : 'border-slate-100 bg-white'}`}>
+                {pinInput[i] ? '●' : ''}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'CLR', 0, 'DEL'].map((btn, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => { 
+                  if(btn === 'DEL') setPinInput(p => p.slice(0, -1)); 
+                  else if(btn === 'CLR') setPinInput('');
+                  else if(typeof btn === 'number') {
+                    if(pinInput.length < 4) setPinInput(p => p + btn); 
+                  }
+                }} 
+                className={`h-14 rounded-xl font-bold transition-all text-sm bg-white border border-slate-100 active:scale-95 hover:bg-slate-50 ${btn === 'DEL' || btn === 'CLR' ? 'text-rose-500 text-[10px]' : 'text-slate-600'}`}
+              >
+                {btn === 'DEL' ? '←' : btn}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // DASHBOARD RENDER
   return (
     <div className="min-h-screen bg-[#f9fafb] text-slate-900 pb-20 font-sans">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
