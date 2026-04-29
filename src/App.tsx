@@ -22,14 +22,18 @@ const APP_PIN = "3270";
 
 const getLocalTodayStr = () => new Date().toLocaleDateString('en-CA');
 
-const getDaysAgo = (dateString: string) => {
-  if (!dateString) return '';
+const getDiffDays = (dateString: string) => {
+  if (!dateString) return 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const appliedDate = new Date(dateString.replace(/-/g, '\/'));
+  const appliedDate = new Date(dateString.replace(/-/g, '/'));
   appliedDate.setHours(0, 0, 0, 0);
   const diffTime = today.getTime() - appliedDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const getDaysAgo = (dateString: string) => {
+  const diffDays = getDiffDays(dateString);
   if (diffDays < 0) return 'Future'; 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
@@ -52,7 +56,6 @@ export default function App() {
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  // Secret Toggle: Ctrl + Shift + E
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'E') {
@@ -124,8 +127,8 @@ export default function App() {
 
   const handleStatClick = (type: string, val: string) => {
     resetFilters();
-    if (type === 'status') setStatusFilter(val);
     if (type === 'date') setDateFilter(val);
+    if (type === 'status') setStatusFilter(val);
     setCurrentPage(1);
   };
 
@@ -137,20 +140,34 @@ export default function App() {
       .filter(j => {
         const company = (j.company || "").toLowerCase();
         const title = (j.title || "").toLowerCase();
-        const status = (j.status || "Applied").toLowerCase();
+        const status = (j.status || "").trim().toLowerCase();
         const jobDate = (j.date || "");
-        const location = (j.location || "Remote").toLowerCase();
-        const type = (j.type || "Full-Time").toLowerCase();
+        const diff = getDiffDays(jobDate);
+
         const matchSearch = (company + title).includes(searchTerm.toLowerCase());
         const matchStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
-        const matchDate = dateFilter === 'all' || jobDate === todayStr;
-        const matchLocation = locationFilter === 'all' || location === locationFilter.toLowerCase();
-        const matchType = typeFilter === 'all' || type === typeFilter.toLowerCase();
+        
+        let matchDate = true;
+        if (dateFilter === 'today') {
+          matchDate = jobDate === todayStr;
+        } else if (dateFilter === 'active_pipeline') {
+          const isDead = status === 'rejected' || 
+                         status === 'ghosted' || 
+                         status === 'interviewed ➔ rejected' ||
+                         diff > 30;
+          matchDate = !isDead;
+        } else if (dateFilter === 'no_response') {
+          matchDate = diff > 30;
+        }
+
+        const matchLocation = locationFilter === 'all' || (j.location || "").toLowerCase() === locationFilter.toLowerCase();
+        const matchType = typeFilter === 'all' || (j.type || "").toLowerCase() === typeFilter.toLowerCase();
+        
         return matchSearch && matchStatus && matchDate && matchLocation && matchType;
       })
       .sort((a, b) => {
-        const dateA = new Date((a.date || "1970-01-01").replace(/-/g, '\/')).getTime();
-        const dateB = new Date((b.date || "1970-01-01").replace(/-/g, '\/')).getTime();
+        const dateA = new Date((a.date || "1970-01-01").replace(/-/g, '/')).getTime();
+        const dateB = new Date((b.date || "1970-01-01").replace(/-/g, '/')).getTime();
         if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
@@ -178,44 +195,25 @@ export default function App() {
     setEditingJob(null);
   };
 
-  const getCount = (key: string, val: string) => jobs.filter(j => (j[key] || "").toLowerCase() === val.toLowerCase()).length;
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
-        <div className="w-full max-w-xs text-center">
-          <div className="w-16 h-16 bg-black text-white flex items-center justify-center rounded-3xl mx-auto mb-4 text-2xl font-black shadow-xl">JT</div>
-          <h1 className="text-2xl font-black mb-8">Job Tracker</h1>
-          
-          <div className="flex justify-center gap-3 mb-10">
-            {[0, 1, 2, 3].map(i => (
-              <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-300 bg-white text-slate-400' : 'border-slate-100 bg-white'}`}>
-                {pinInput[i] ? '●' : ''}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'CLR', 0, 'DEL'].map((btn, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => { 
-                  if(btn === 'DEL') setPinInput(p => p.slice(0, -1)); 
-                  else if(btn === 'CLR') setPinInput('');
-                  else if(typeof btn === 'number') if(pinInput.length < 4) setPinInput(p => p + btn); 
-                }} 
-                className={`h-14 rounded-xl font-bold transition-all text-sm bg-white border border-slate-100 active:scale-95 hover:bg-slate-50 ${btn === 'DEL' || btn === 'CLR' ? 'text-rose-500 text-[10px]' : 'text-slate-600'}`}
-              >
-                {btn === 'DEL' ? '←' : btn}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const getCount = (key: string, val: string) => {
+    return jobs.filter(j => {
+      const dbVal = (j[key] || "").toString().trim().toLowerCase();
+      const target = val.trim().toLowerCase();
+      // Switched to exact match for status to prevent "Rejected" from catching "Interviewed ➔ Rejected"
+      if (key === 'status') return dbVal === target;
+      return dbVal === target;
+    }).length;
+  };
 
   const todayStr = getLocalTodayStr();
+
+  // Distinct buckets for the math and UI
+  const rejectedCount = getCount('status', 'rejected'); 
+  const ghostedCount = getCount('status', 'ghosted');   
+  const intvRejCount = getCount('status', 'interviewed ➔ rejected'); 
+  const noResponseCount = jobs.filter(j => getDiffDays(j.date) > 30).length; 
+
+  const activeCount = jobs.length - (rejectedCount + ghostedCount + intvRejCount + noResponseCount);
 
   return (
     <div className="min-h-screen bg-[#f9fafb] text-slate-900 pb-20 font-sans">
@@ -230,16 +228,13 @@ export default function App() {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 md:p-8">
-        {/* Rest of your existing Main UI code... */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
-            { label: 'Total', val: jobs.length, filter: 'all', type: 'status' },
+            { label: 'Active', val: activeCount, filter: 'active_pipeline', type: 'date' },
             { label: 'Today', val: jobs.filter(j => (j.date) === todayStr).length, filter: 'today', type: 'date' },
-            { label: 'Intv', val: jobs.filter(j => (j.status || "").toLowerCase() === 'interviewing').length, filter: 'Interviewing', type: 'status' },
+            { label: 'Intv', val: jobs.filter(j => (j.status || "").trim().toLowerCase() === 'interviewing').length, filter: 'interviewing', type: 'status' },
           ].map((stat) => {
-            const isActive = stat.filter === 'all' 
-              ? (statusFilter === 'all' && dateFilter === 'all' && !searchTerm && locationFilter === 'all' && typeFilter === 'all')
-              : (stat.type === 'status' ? statusFilter === stat.filter : dateFilter === stat.filter);
+            const isActive = stat.type === 'status' ? statusFilter === stat.filter : dateFilter === stat.filter;
 
             return (
               <button key={stat.label} onClick={() => handleStatClick(stat.type, stat.filter)}
@@ -264,17 +259,23 @@ export default function App() {
             { label: 'Remote', val: 'remote', type: 'location', count: getCount('location', 'remote') },
             { label: 'Local', val: 'local', type: 'location', count: getCount('location', 'local') },
             { label: 'Contract', val: 'contract', type: 'type', count: getCount('type', 'contract') },
-            { label: 'Intv ➔ Rej', val: 'interviewed ➔ rejected', type: 'status', count: getCount('status', 'interviewed ➔ rejected') },
-            { label: 'Rejected', val: 'rejected', type: 'status', count: getCount('status', 'rejected') },
-            { label: 'Ghosted', val: 'ghosted', type: 'status', count: getCount('status', 'ghosted') },
+            { label: 'Intv ➔ Rej', val: 'interviewed ➔ rejected', type: 'status', count: intvRejCount },
+            { label: 'Rejected', val: 'rejected', type: 'status', count: rejectedCount },
+            { label: 'Ghosted', val: 'ghosted', type: 'status', count: ghostedCount },
+            { label: 'No Response', val: 'no_response', type: 'date', count: noResponseCount },
+            { label: 'All Applications', val: 'all', type: 'reset', count: jobs.length },
           ].map(f => (
             <button key={f.label} onClick={() => {
-              if (f.type === 'location') setLocationFilter(locationFilter === f.val ? 'all' : f.val);
-              if (f.type === 'type') setTypeFilter(typeFilter === f.val ? 'all' : f.val);
-              if (f.type === 'status') setStatusFilter(statusFilter === f.val ? 'all' : f.val);
-              setCurrentPage(1);
+              if (f.type === 'reset') resetFilters();
+              else {
+                if (f.type === 'location') setLocationFilter(locationFilter === f.val ? 'all' : f.val);
+                if (f.type === 'type') setTypeFilter(typeFilter === f.val ? 'all' : f.val);
+                if (f.type === 'status') setStatusFilter(statusFilter === f.val ? 'all' : f.val);
+                if (f.type === 'date') setDateFilter(dateFilter === f.val ? 'all' : f.val);
+                setCurrentPage(1);
+              }
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (locationFilter === f.val || typeFilter === f.val || statusFilter === f.val) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (locationFilter === f.val || typeFilter === f.val || statusFilter === f.val || dateFilter === f.val || (f.val === 'all' && !isFiltered)) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
               {f.label} <span className="opacity-50">{f.count}</span>
             </button>
           ))}
