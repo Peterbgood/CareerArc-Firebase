@@ -53,7 +53,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
+  const [weekFilter, setWeekFilter] = useState('all'); // Replaced locationFilter
   const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
@@ -72,7 +72,6 @@ export default function App() {
       if (pinInput === APP_PIN) {
         setIsAuthenticated(true);
       } else {
-        // Flash red or reset on wrong PIN
         const timer = setTimeout(() => setPinInput(''), 400);
         return () => clearTimeout(timer);
       }
@@ -134,7 +133,7 @@ export default function App() {
   };
 
   const resetFilters = () => {
-    setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setLocationFilter('all'); setTypeFilter('all');
+    setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setWeekFilter('all'); setTypeFilter('all');
     setCurrentPage(1);
   };
 
@@ -145,7 +144,27 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || locationFilter !== 'all' || typeFilter !== 'all';
+  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || weekFilter !== 'all' || typeFilter !== 'all';
+
+  // Helper date metrics for calculations
+  const dateMetrics = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Day of week: 0 (Sun) to 6 (Sat). Turn Sunday into 7 to make Monday index 1
+    const currentDay = today.getDay() === 0 ? 7 : today.getDay();
+    
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - (currentDay - 1));
+    
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+
+    return {
+      thisMondayTime: thisMonday.getTime(),
+      lastMondayTime: lastMonday.getTime()
+    };
+  }, [jobs]); // Recalculate if jobs snapshot updates or components re-render
 
   const sortedAndFilteredJobs = useMemo(() => {
     const todayStr = getLocalTodayStr();
@@ -173,10 +192,18 @@ export default function App() {
           matchDate = diff > 30;
         }
 
-        const matchLocation = locationFilter === 'all' || (j.location || "").toLowerCase() === locationFilter.toLowerCase();
+        // Week filters setup
+        const jobTime = new Date((j.date || "1970-01-01").replace(/-/g, '/')).setHours(0, 0, 0, 0);
+        let matchWeek = true;
+        if (weekFilter === 'this_week') {
+          matchWeek = jobTime >= dateMetrics.thisMondayTime;
+        } else if (weekFilter === 'last_week') {
+          matchWeek = jobTime >= dateMetrics.lastMondayTime && jobTime < dateMetrics.thisMondayTime;
+        }
+
         const matchType = typeFilter === 'all' || (j.type || "").toLowerCase() === typeFilter.toLowerCase();
         
-        return matchSearch && matchStatus && matchDate && matchLocation && matchType;
+        return matchSearch && matchStatus && matchDate && matchWeek && matchType;
       })
       .sort((a, b) => {
         const dateA = new Date((a.date || "1970-01-01").replace(/-/g, '/')).getTime();
@@ -184,7 +211,7 @@ export default function App() {
         if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, dateFilter, locationFilter, typeFilter]);
+  }, [jobs, searchTerm, statusFilter, dateFilter, weekFilter, typeFilter, dateMetrics]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -216,9 +243,19 @@ export default function App() {
     }).length;
   };
 
+  const getWeekCount = (type: 'this' | 'last') => {
+    return jobs.filter(j => {
+      const jobTime = new Date((j.date || "1970-01-01").replace(/-/g, '/')).setHours(0, 0, 0, 0);
+      if (type === 'this') {
+        return jobTime >= dateMetrics.thisMondayTime;
+      } else {
+        return jobTime >= dateMetrics.lastMondayTime && jobTime < dateMetrics.thisMondayTime;
+      }
+    }).length;
+  };
+
   const todayStr = getLocalTodayStr();
 
-  // Distinct buckets for UI and math
   const rejectedCount = getCount('status', 'rejected'); 
   const ghostedCount = getCount('status', 'ghosted');   
   const intvRejCount = getCount('status', 'interviewed ➔ rejected'); 
@@ -306,8 +343,8 @@ export default function App() {
 
         <div className="flex flex-wrap items-center gap-2 mb-10">
           {[
-            { label: 'Remote', val: 'remote', type: 'location', count: getCount('location', 'remote') },
-            { label: 'Local', val: 'local', type: 'location', count: getCount('location', 'local') },
+            { label: 'This Week', val: 'this_week', type: 'week', count: getWeekCount('this') },
+            { label: 'Last Week', val: 'last_week', type: 'week', count: getWeekCount('last') },
             { label: 'Contract', val: 'contract', type: 'type', count: getCount('type', 'contract') },
             { label: 'Intv ➔ Rej', val: 'interviewed ➔ rejected', type: 'status', count: intvRejCount },
             { label: 'Rejected', val: 'rejected', type: 'status', count: rejectedCount },
@@ -318,14 +355,14 @@ export default function App() {
             <button key={f.label} onClick={() => {
               if (f.type === 'reset') resetFilters();
               else {
-                if (f.type === 'location') setLocationFilter(locationFilter === f.val ? 'all' : f.val);
+                if (f.type === 'week') setWeekFilter(weekFilter === f.val ? 'all' : f.val);
                 if (f.type === 'type') setTypeFilter(typeFilter === f.val ? 'all' : f.val);
                 if (f.type === 'status') setStatusFilter(statusFilter === f.val ? 'all' : f.val);
                 if (f.type === 'date') setDateFilter(dateFilter === f.val ? 'all' : f.val);
                 setCurrentPage(1);
               }
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (locationFilter === f.val || typeFilter === f.val || statusFilter === f.val || dateFilter === f.val || (f.val === 'all' && !isFiltered)) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (weekFilter === f.val || typeFilter === f.val || statusFilter === f.val || dateFilter === f.val || (f.val === 'all' && !isFiltered)) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
               {f.label} <span className="opacity-50">{f.count}</span>
             </button>
           ))}
