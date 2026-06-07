@@ -34,10 +34,13 @@ const getDiffDays = (dateString: string) => {
 
 const getDaysAgo = (dateString: string) => {
   const diffDays = getDiffDays(dateString);
-  if (diffDays < 0) return 'Future'; 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  return `${diffDays} days ago`;
+  let relative = '';
+  if (diffDays < 0) relative = 'Future';
+  else if (diffDays === 0) relative = 'Today';
+  else if (diffDays === 1) relative = 'Yesterday';
+  else relative = `${diffDays} days ago`;
+  
+  return `${relative} • ${dateString}`;
 };
 
 export default function App() {
