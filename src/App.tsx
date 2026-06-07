@@ -261,7 +261,15 @@ export default function App() {
   const intvRejCount = getCount('status', 'interviewed ➔ rejected'); 
   const noResponseCount = jobs.filter(j => getDiffDays(j.date) > 30).length; 
 
-  const activeCount = jobs.length - (rejectedCount + ghostedCount + intvRejCount + noResponseCount);
+  const activeCount = jobs.filter(j => {
+    const status = (j.status || "").trim().toLowerCase();
+    const diff = getDiffDays(j.date);
+    const isDead = status === 'rejected' || 
+                   status === 'ghosted' || 
+                   status === 'interviewed ➔ rejected' ||
+                   diff > 30;
+    return !isDead;
+  }).length;
 
   // AUTH GUARD COMPONENT
   if (!isAuthenticated) {
