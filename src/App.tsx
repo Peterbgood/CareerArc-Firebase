@@ -430,7 +430,7 @@ export default function App() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Position</label>
-                  <input required className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.title || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
+                  <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.title || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
