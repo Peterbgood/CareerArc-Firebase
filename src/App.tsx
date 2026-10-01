@@ -58,6 +58,7 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState('all');
   const [weekFilter, setWeekFilter] = useState('all'); // Replaced locationFilter
   const [typeFilter, setTypeFilter] = useState('all');
+  const [needFilter, setNeedFilter] = useState('all');
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -110,17 +111,22 @@ export default function App() {
 
   const downloadCSV = () => {
     if (jobs.length === 0) return;
-    const headers = ["Company", "Title", "Date", "Status", "Location", "Type", "Salary", "URL"];
+    const headers = ["Company", "Brand", "Title", "Date", "Status", "Location", "Type", "Salary", "Job ID", "Confirmation", "Notes", "Needs Action", "URL"];
     const csvContent = [
       headers.join(","),
       ...jobs.map(j => [
         `"${(j.company || "").replace(/"/g, '""')}"`,
+        `"${(j.brand || "").replace(/"/g, '""')}"`,
         `"${(j.title || "").replace(/"/g, '""')}"`,
         j.date,
         j.status,
         j.location,
         j.type,
         `"${(j.salary || "").replace(/"/g, '""')}"`,
+        `"${(j.jobId || "").replace(/"/g, '""')}"`,
+        `"${(j.confirmNo || "").replace(/"/g, '""')}"`,
+        `"${(j.notes || "").replace(/"/g, '""')}"`,
+        j.needsAction ? "yes" : "",
         j.url
       ].join(","))
     ].join("\n");
@@ -136,7 +142,7 @@ export default function App() {
   };
 
   const resetFilters = () => {
-    setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setWeekFilter('all'); setTypeFilter('all');
+    setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setWeekFilter('all'); setTypeFilter('all'); setNeedFilter('all');
     setCurrentPage(1);
   };
 
@@ -147,7 +153,35 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || weekFilter !== 'all' || typeFilter !== 'all';
+  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || weekFilter !== 'all' || typeFilter !== 'all' || needFilter !== 'all';
+
+  // Company-name helpers: normalize for cap counting and brand aliasing
+  const normName = (s: any) => (s || "").toString().trim().toLowerCase();
+
+  // Known parent/brand families. Add more as "alias": "canonical parent".
+  const COMPANY_ALIASES: Record<string, string> = {
+    "petsafe": "radio systems",
+    "radio systems": "radio systems",
+  };
+  const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
+
+  const isActiveJob = (j: any) => {
+    const status = (j.status || "").trim().toLowerCase();
+    const diff = getDiffDays(j.date);
+    return !(status === 'rejected' ||
+             status === 'ghosted' ||
+             status === 'interviewed ➔ rejected' ||
+             diff > 30);
+  };
+
+  // Active applications on file at a company (matches company or brand alias, incl. known parent/brand families)
+  const companyActiveCount = (name: string) => {
+    const n = canonicalName(name);
+    if (!n) return 0;
+    return jobs.filter(j => (canonicalName(j.company) === n || canonicalName(j.brand) === n) && isActiveJob(j)).length;
+  };
+
+  const needsActionCount = jobs.filter(j => j.needsAction && isActiveJob(j)).length;
 
   // Helper date metrics for calculations
   const dateMetrics = useMemo(() => {
@@ -174,13 +208,17 @@ export default function App() {
     return jobs
       .filter(j => {
         const company = (j.company || "").toLowerCase();
+        const brand = (j.brand || "").toLowerCase();
         const title = (j.title || "").toLowerCase();
+        const jobId = (j.jobId || "").toLowerCase();
+        const confirmNo = (j.confirmNo || "").toLowerCase();
         const status = (j.status || "").trim().toLowerCase();
         const jobDate = (j.date || "");
         const diff = getDiffDays(jobDate);
 
-        const matchSearch = (company + title).includes(searchTerm.toLowerCase());
+        const matchSearch = (company + " " + brand + " " + title + " " + jobId + " " + confirmNo).includes(searchTerm.toLowerCase());
         const matchStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
+        const matchNeed = needFilter === 'all' || (needFilter === 'needs_action' && !!j.needsAction);
         
         let matchDate = true;
         if (dateFilter === 'today') {
@@ -206,7 +244,7 @@ export default function App() {
 
         const matchType = typeFilter === 'all' || (j.type || "").toLowerCase() === typeFilter.toLowerCase();
         
-        return matchSearch && matchStatus && matchDate && matchWeek && matchType;
+        return matchSearch && matchStatus && matchNeed && matchDate && matchWeek && matchType;
       })
       .sort((a, b) => {
         const dateA = new Date((a.date || "1970-01-01").replace(/-/g, '/')).getTime();
@@ -214,7 +252,7 @@ export default function App() {
         if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, dateFilter, weekFilter, typeFilter, dateMetrics]);
+  }, [jobs, searchTerm, statusFilter, dateFilter, weekFilter, typeFilter, needFilter, dateMetrics]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -223,12 +261,17 @@ export default function App() {
     e.preventDefault();
     const data = {
       company: editingJob.company || '',
+      brand: editingJob.brand || '',
+      jobId: editingJob.jobId || '',
+      confirmNo: editingJob.confirmNo || '',
       title: editingJob.title || '',
       date: editingJob.date || getLocalTodayStr(),
       status: editingJob.status || 'Applied',
       location: editingJob.location || 'Remote',
       url: editingJob.url || '',
       salary: editingJob.salary || '',
+      notes: editingJob.notes || '',
+      needsAction: !!editingJob.needsAction,
       type: editingJob.type || 'Full-Time',
       createdAt: editingJob.createdAt || Date.now()
     };
@@ -346,7 +389,7 @@ export default function App() {
 
         <div className="relative mb-8">
           <input className="w-full bg-white border border-slate-200 pl-6 pr-14 py-4 rounded-[24px] outline-none focus:border-slate-400 transition-all text-sm font-semibold shadow-sm" 
-            placeholder="Search company, title..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
+            placeholder="Search company, brand, title, job ID..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
           <div className="absolute right-6 top-1/2 -translate-y-1/2">
             <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
@@ -361,6 +404,7 @@ export default function App() {
             { label: 'Rejected', val: 'rejected', type: 'status', count: rejectedCount },
             { label: 'Ghosted', val: 'ghosted', type: 'status', count: ghostedCount },
             { label: 'No Response', val: 'no_response', type: 'date', count: noResponseCount },
+            { label: 'Needs Action', val: 'needs_action', type: 'needaction', count: needsActionCount },
             { label: 'All Applications', val: 'all', type: 'reset', count: jobs.length },
           ].map(f => (
             <button key={f.label} onClick={() => {
@@ -370,10 +414,11 @@ export default function App() {
                 if (f.type === 'type') setTypeFilter(typeFilter === f.val ? 'all' : f.val);
                 if (f.type === 'status') setStatusFilter(statusFilter === f.val ? 'all' : f.val);
                 if (f.type === 'date') setDateFilter(dateFilter === f.val ? 'all' : f.val);
+                if (f.type === 'needaction') setNeedFilter(needFilter === f.val ? 'all' : f.val);
                 setCurrentPage(1);
               }
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (weekFilter === f.val || typeFilter === f.val || statusFilter === f.val || dateFilter === f.val || (f.val === 'all' && !isFiltered)) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border ${ (weekFilter === f.val || typeFilter === f.val || statusFilter === f.val || dateFilter === f.val || needFilter === f.val || (f.val === 'all' && !isFiltered)) ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300' }`}>
               {f.label} <span className="opacity-50">{f.count}</span>
             </button>
           ))}
@@ -387,13 +432,19 @@ export default function App() {
         <div className="space-y-6">
           {loading ? <div className="p-10 text-center text-[10px] font-black text-slate-300 animate-pulse">SYNCING...</div> : sortedAndFilteredJobs.length === 0 ? <div className="p-10 text-center text-slate-400 text-sm italic">Empty.</div> : 
             paginatedJobs.map(job => (
-              <div key={job.id} className="bg-white border border-slate-100 p-6 rounded-[28px] flex justify-between items-start shadow-sm hover:shadow-md transition-all">
+              <div key={job.id} className={`bg-white border p-6 rounded-[28px] flex justify-between items-start shadow-sm hover:shadow-md transition-all ${job.needsAction ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100'}`}>
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-black text-sm text-black uppercase tracking-tight">{job.company}</span>
+                    {job.brand && normName(job.brand) !== normName(job.company) && <span className="text-sky-700 font-bold text-[9px] bg-sky-50 px-2 py-0.5 rounded-full">via {job.brand}</span>}
                     {job.salary && <span className="text-emerald-600 font-bold text-[9px] bg-emerald-50 px-2 py-0.5 rounded-full">{job.salary}</span>}
+                    {job.jobId && <span className="text-slate-500 font-bold text-[9px] bg-slate-100 px-2 py-0.5 rounded-full">ID {job.jobId}</span>}
+                    {job.needsAction && <span className="text-amber-700 font-black text-[9px] bg-amber-100 px-2 py-0.5 rounded-full uppercase">Action needed</span>}
                   </div>
-                  <div className="text-slate-500 text-xs font-semibold mb-4">{job.title}</div>
+                  <div className="mb-4">
+                    <div className="text-slate-500 text-xs font-semibold">{job.title}</div>
+                    {job.notes && <div className="text-slate-500 text-xs italic mt-1">{job.notes}</div>}
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <span className="text-[9px] font-black text-black bg-slate-50 px-3 py-1.5 rounded-xl uppercase">{getDaysAgo(job.date)}</span>
                     <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : (job.status || "").toLowerCase().includes('rejected') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
@@ -427,10 +478,28 @@ export default function App() {
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Company</label>
                   <input required className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.company || ''} onChange={e => setEditingJob({...editingJob, company: e.target.value})} />
+                  {editingJob?.company?.trim() ? (() => {
+                    const c = companyActiveCount(editingJob.company);
+                    return (
+                      <div className={`text-[10px] font-bold ml-2 mt-1 ${c >= 2 ? 'text-rose-500' : 'text-slate-400'}`}>
+                        {c} active on file{c >= 2 ? ' — at cap, skip new applications' : ''}
+                      </div>
+                    );
+                  })() : null}
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Brand (posting name)</label>
+                  <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" placeholder="e.g. PetSafe" value={editingJob?.brand || ''} onChange={e => setEditingJob({...editingJob, brand: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Position</label>
                   <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.title || ''} onChange={e => setEditingJob({...editingJob, title: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Job / Req ID</label>
+                  <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" placeholder="e.g. 4473940938" value={editingJob?.jobId || ''} onChange={e => setEditingJob({...editingJob, jobId: e.target.value})} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -446,6 +515,20 @@ export default function App() {
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Job URL</label>
                 <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.url || ''} onChange={e => setEditingJob({...editingJob, url: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Confirmation #</label>
+                  <input className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none" value={editingJob?.confirmNo || ''} onChange={e => setEditingJob({...editingJob, confirmNo: e.target.value})} />
+                </div>
+                <label className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={!!editingJob?.needsAction} onChange={e => setEditingJob({...editingJob, needsAction: e.target.checked})} />
+                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Waiting on me</span>
+                </label>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Notes</label>
+                <textarea rows={2} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none resize-none" placeholder="Next step, blocker, follow-up..." value={editingJob?.notes || ''} onChange={e => setEditingJob({...editingJob, notes: e.target.value})} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
