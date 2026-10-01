@@ -380,7 +380,7 @@ export default function App() {
             return (
               <button key={stat.label} onClick={() => handleStatClick(stat.type, stat.filter)}
                 className={`p-6 rounded-[32px] text-left transition-all border-2 ${ isActive ? 'bg-[#f0fdf4] border-[#86efac]' : 'bg-white border-transparent' } shadow-sm`}>
-                <div className="text-3xl font-black mb-1 text-black">{stat.val}</div>
+                <div className="text-3xl font-black mb-1 text-black tnum">{stat.val}</div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</div>
               </button>
             );
@@ -432,30 +432,38 @@ export default function App() {
         <div className="space-y-6">
           {loading ? <div className="p-10 text-center text-[10px] font-black text-slate-300 animate-pulse">SYNCING...</div> : sortedAndFilteredJobs.length === 0 ? <div className="p-10 text-center text-slate-400 text-sm italic">Empty.</div> : 
             paginatedJobs.map(job => (
-              <div key={job.id} className={`bg-white border p-6 rounded-[28px] flex justify-between items-start shadow-sm hover:shadow-md transition-all ${job.needsAction ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100'}`}>
-                <div className="flex-1 min-w-0 pr-4">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
+              <div key={job.id} className={`bg-white border p-6 rounded-[32px] shadow-[0_2px_16px_-6px_rgba(15,23,42,0.10)] hover:shadow-[0_10px_28px_-10px_rgba(15,23,42,0.14)] hover:-translate-y-0.5 transition-all ${job.needsAction ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100'}`}>
+                <div className="flex justify-between items-start gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <span className="font-black text-sm text-black uppercase tracking-tight">{job.company}</span>
                     {job.brand && normName(job.brand) !== normName(job.company) && <span className="text-sky-700 font-bold text-[9px] bg-sky-50 px-2 py-0.5 rounded-full">via {job.brand}</span>}
                     {job.salary && <span className="text-emerald-600 font-bold text-[9px] bg-emerald-50 px-2 py-0.5 rounded-full">{job.salary}</span>}
                     {job.jobId && <span className="text-slate-500 font-bold text-[9px] bg-slate-100 px-2 py-0.5 rounded-full">ID {job.jobId}</span>}
                     {job.needsAction && <span className="text-amber-700 font-black text-[9px] bg-amber-100 px-2 py-0.5 rounded-full uppercase">Action needed</span>}
                   </div>
-                  <div className="mb-4">
-                    <div className="text-slate-500 text-xs font-semibold">{job.title}</div>
-                    {job.notes && <div className="text-slate-500 text-xs italic mt-1">{job.notes}</div>}
+                  <div className="flex gap-1 shrink-0 -mr-2 -mt-2">
+                    {job.url && <a href={job.url} target="_blank" rel="noreferrer" className="p-2 text-slate-300 hover:text-black"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>}
+                    <button onClick={() => { setEditingJob(job); setIsModalOpen(true); }} className="p-2 text-slate-300 hover:text-black"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                    <button onClick={() => deleteDoc(doc(db, "jobs", job.id))} className="p-2 text-slate-300 hover:text-rose-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                   </div>
+                </div>
+                <div className="mb-2">
+                  <div className="text-slate-500 text-xs font-semibold">{job.title}</div>
+                </div>
+                  {job.notes && (
+                    <div className="mb-4 flex gap-2.5 w-full">
+                      <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-black shrink-0 mt-4">P</div>
+                      <div className="flex-1 min-w-0 w-full">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Note</div>
+                        <div className="w-full bg-slate-50 border border-slate-200/70 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-600 whitespace-pre-wrap">{job.notes}</div>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <span className="text-[9px] font-black text-black bg-slate-50 px-3 py-1.5 rounded-xl uppercase">{getDaysAgo(job.date)}</span>
                     <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : (job.status || "").toLowerCase().includes('rejected') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
                     <span className="text-[9px] font-bold text-slate-400 self-center ml-1">{job.location} • {job.type}</span>
                   </div>
-                </div>
-                <div className="flex gap-1">
-                  {job.url && <a href={job.url} target="_blank" rel="noreferrer" className="p-2 text-slate-300 hover:text-black"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>}
-                  <button onClick={() => { setEditingJob(job); setIsModalOpen(true); }} className="p-2 text-slate-300 hover:text-black"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                  <button onClick={() => deleteDoc(doc(db, "jobs", job.id))} className="p-2 text-slate-300 hover:text-rose-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                </div>
               </div>
             ))}
         </div>
@@ -528,7 +536,10 @@ export default function App() {
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Notes</label>
-                <textarea rows={2} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3.5 text-sm outline-none resize-none" placeholder="Next step, blocker, follow-up..." value={editingJob?.notes || ''} onChange={e => setEditingJob({...editingJob, notes: e.target.value})} />
+                <div className="flex gap-2.5 bg-slate-50 rounded-2xl px-3.5 py-3">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[11px] font-black shrink-0">P</div>
+                  <textarea rows={2} className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-slate-700 placeholder:text-slate-400" placeholder="Add a note — next step, blocker, follow-up..." value={editingJob?.notes || ''} onChange={e => setEditingJob({...editingJob, notes: e.target.value})} />
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
