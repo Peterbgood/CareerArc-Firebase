@@ -185,22 +185,23 @@ export default function App() {
   const needsActionCount = jobs.filter(j => j.needsAction && isActiveJob(j)).length;
 
   const employerGroups = useMemo(() => {
-    const groups = new Map<string, { key: string; total: number; active: number; spells: Map<string, number> }>();
+    const groups = new Map<string, { key: string; total: number; active: number; local: number; spells: Map<string, number> }>();
     jobs.forEach(j => {
       const key = canonicalName(j.company) || canonicalName(j.brand) || "(unknown)";
       let g = groups.get(key);
-      if (!g) { g = { key, total: 0, active: 0, spells: new Map() }; groups.set(key, g); }
+      if (!g) { g = { key, total: 0, active: 0, local: 0, spells: new Map() }; groups.set(key, g); }
       g.total += 1;
       if (isActiveJob(j)) g.active += 1;
+      if ((j.location || "").toString().trim().toLowerCase() === "local") g.local += 1;
       const raw = (j.company || j.brand || "(unknown)").toString().trim() || "(unknown)";
       g.spells.set(raw, (g.spells.get(raw) || 0) + 1);
     });
     const arr = [...groups.values()].map(g => {
       let best = g.key, bestN = -1;
       g.spells.forEach((n, s) => { if (n > bestN) { bestN = n; best = s; } });
-      return { key: g.key, display: best, total: g.total, active: g.active };
+      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local };
     });
-    arr.sort((a, b) => b.total - a.total || a.display.localeCompare(b.display));
+    arr.sort((a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display));
     return arr;
   }, [jobs]);
 
@@ -511,6 +512,7 @@ export default function App() {
                     className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-4 py-3 transition-all text-left">
                     <span className="font-bold text-sm text-slate-800 truncate">{g.display}</span>
                     <span className="flex items-center gap-2 shrink-0">
+                      {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
                       <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{g.active} active</span>
                       <span className="text-[10px] font-bold text-slate-400">{g.total} total</span>
