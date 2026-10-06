@@ -168,6 +168,9 @@ export default function App() {
     "radio systems": "radio systems",
     "us bank": "u.s. bank",
     "u.s. bank": "u.s. bank",
+    "clayton homes": "clayton",
+    "vanderbilt mortgage and finance, inc.": "clayton",
+    "vanderbilt mortgage and finance": "clayton",
   };
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
