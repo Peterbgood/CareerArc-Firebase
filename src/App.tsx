@@ -36,8 +36,8 @@ const getDaysAgo = (dateString: string) => {
   const diffDays = getDiffDays(dateString);
   let relative = '';
   if (diffDays < 0) relative = 'Future';
-  else if (diffDays === 0) relative = 'Today';
   else if (diffDays === 1) relative = 'Yesterday';
+  else if (diffDays === 0) relative = 'Today';
   else relative = `${diffDays} days ago`;
   
   return `${relative} • ${dateString}`;
@@ -56,9 +56,11 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
-  const [weekFilter, setWeekFilter] = useState('all'); // Replaced locationFilter
+  const [weekFilter, setWeekFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [needFilter, setNeedFilter] = useState('all');
+  const [employerFilter, setEmployerFilter] = useState<string | null>(null);
+  const [showEmployers, setShowEmployers] = useState(false);
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -70,7 +72,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
-  // Strict PIN check logic
   useEffect(() => {
     if (pinInput.length === 4) {
       if (pinInput === APP_PIN) {
@@ -83,7 +84,7 @@ export default function App() {
   }, [pinInput]);
 
   useEffect(() => {
-    if (isAuthenticated) return;
+    if (!isAuthenticated) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') { 
         if (pinInput.length < 4) setPinInput(prev => prev + e.key); 
@@ -143,6 +144,7 @@ export default function App() {
 
   const resetFilters = () => {
     setSearchTerm(''); setStatusFilter('all'); setDateFilter('all'); setWeekFilter('all'); setTypeFilter('all'); setNeedFilter('all');
+    setEmployerFilter(null); setShowEmployers(false);
     setCurrentPage(1);
   };
 
@@ -153,15 +155,15 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || weekFilter !== 'all' || typeFilter !== 'all' || needFilter !== 'all';
+  const isFiltered = searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || weekFilter !== 'all' || typeFilter !== 'all' || needFilter !== 'all' || employerFilter;
 
-  // Company-name helpers: normalize for cap counting and brand aliasing
   const normName = (s: any) => (s || "").toString().trim().toLowerCase();
 
-  // Known parent/brand families. Add more as "alias": "canonical parent".
   const COMPANY_ALIASES: Record<string, string> = {
     "petsafe": "radio systems",
     "radio systems": "radio systems",
+    "us bank": "u.s. bank",
+    "u.s. bank": "u.s. bank",
   };
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
@@ -174,7 +176,6 @@ export default function App() {
              diff > 30);
   };
 
-  // Active applications on file at a company (matches company or brand alias, incl. known parent/brand families)
   const companyActiveCount = (name: string) => {
     const n = canonicalName(name);
     if (!n) return 0;
@@ -183,25 +184,39 @@ export default function App() {
 
   const needsActionCount = jobs.filter(j => j.needsAction && isActiveJob(j)).length;
 
-  // Helper date metrics for calculations
+  const employerGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; total: number; active: number; spells: Map<string, number> }>();
+    jobs.forEach(j => {
+      const key = canonicalName(j.company) || canonicalName(j.brand) || "(unknown)";
+      let g = groups.get(key);
+      if (!g) { g = { key, total: 0, active: 0, spells: new Map() }; groups.set(key, g); }
+      g.total += 1;
+      if (isActiveJob(j)) g.active += 1;
+      const raw = (j.company || j.brand || "(unknown)").toString().trim() || "(unknown)";
+      g.spells.set(raw, (g.spells.get(raw) || 0) + 1);
+    });
+    const arr = [...groups.values()].map(g => {
+      let best = g.key, bestN = -1;
+      g.spells.forEach((n, s) => { if (n > bestN) { bestN = n; best = s; } });
+      return { key: g.key, display: best, total: g.total, active: g.active };
+    });
+    arr.sort((a, b) => b.total - a.total || a.display.localeCompare(b.display));
+    return arr;
+  }, [jobs]);
+
   const dateMetrics = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // Day of week: 0 (Sun) to 6 (Sat). Turn Sunday into 7 to make Monday index 1
     const currentDay = today.getDay() === 0 ? 7 : today.getDay();
-    
     const thisMonday = new Date(today);
     thisMonday.setDate(today.getDate() - (currentDay - 1));
-    
     const lastMonday = new Date(thisMonday);
     lastMonday.setDate(thisMonday.getDate() - 7);
-
     return {
       thisMondayTime: thisMonday.getTime(),
       lastMondayTime: lastMonday.getTime()
     };
-  }, [jobs]); // Recalculate if jobs snapshot updates or components re-render
+  }, [jobs]);
 
   const sortedAndFilteredJobs = useMemo(() => {
     const todayStr = getLocalTodayStr();
@@ -233,7 +248,6 @@ export default function App() {
           matchDate = diff > 30;
         }
 
-        // Week filters setup
         const jobTime = new Date((j.date || "1970-01-01").replace(/-/g, '/')).setHours(0, 0, 0, 0);
         let matchWeek = true;
         if (weekFilter === 'this_week') {
@@ -243,8 +257,10 @@ export default function App() {
         }
 
         const matchType = typeFilter === 'all' || (j.type || "").toLowerCase() === typeFilter.toLowerCase();
+
+        const matchEmployer = !employerFilter || canonicalName(j.company) === employerFilter || canonicalName(j.brand) === employerFilter;
         
-        return matchSearch && matchStatus && matchNeed && matchDate && matchWeek && matchType;
+        return matchSearch && matchStatus && matchNeed && matchDate && matchWeek && matchType && matchEmployer;
       })
       .sort((a, b) => {
         const dateA = new Date((a.date || "1970-01-01").replace(/-/g, '/')).getTime();
@@ -252,7 +268,7 @@ export default function App() {
         if (dateB === dateA) return (b.createdAt || 0) - (a.createdAt || 0);
         return dateB - dateA;
       });
-  }, [jobs, searchTerm, statusFilter, dateFilter, weekFilter, typeFilter, needFilter, dateMetrics]);
+  }, [jobs, searchTerm, statusFilter, dateFilter, weekFilter, typeFilter, needFilter, employerFilter, dateMetrics]);
 
   const paginatedJobs = sortedAndFilteredJobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
   const totalPages = Math.ceil(sortedAndFilteredJobs.length / JOBS_PER_PAGE);
@@ -317,14 +333,12 @@ export default function App() {
     return !isDead;
   }).length;
 
-  // AUTH GUARD COMPONENT
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
         <div className="w-full max-w-xs text-center">
           <div className="w-16 h-16 bg-black text-white flex items-center justify-center rounded-3xl mx-auto mb-4 text-2xl font-black shadow-xl">JT</div>
           <h1 className="text-2xl font-black mb-8">Job Tracker</h1>
-          
           <div className="flex justify-center gap-3 mb-10">
             {[0, 1, 2, 3].map(i => (
               <div key={i} className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${pinInput[i] ? 'border-slate-300 bg-white text-slate-400' : 'border-slate-100 bg-white'}`}>
@@ -332,7 +346,6 @@ export default function App() {
               </div>
             ))}
           </div>
-
           <div className="grid grid-cols-3 gap-3">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'CLR', 0, 'DEL'].map((btn, idx) => (
               <button 
@@ -355,14 +368,13 @@ export default function App() {
     );
   }
 
-  // DASHBOARD RENDER
   return (
     <div className="min-h-screen bg-[#f9fafb] text-slate-900 pb-20 font-sans">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
         <h1 className="text-lg font-black tracking-tighter uppercase italic">Job Tracker</h1>
         <div className="flex gap-2">
           {showAdminTools && (
-             <button onClick={downloadCSV} className="bg-white border border-slate-200 text-slate-500 px-4 py-2.5 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95">Export CSV</button>
+             <button onClick={downloadCSV} className="bg-white border border-slate-200 text-slate-500 px-4 py-2.5 rounded-full font-bold transition-all active:scale-95">Export CSV</button>
           )}
           <button onClick={() => { setEditingJob({ date: getLocalTodayStr(), status: 'Applied', location: 'Remote', type: 'Full-Time' }); setIsModalOpen(true); }} className="bg-black text-white px-5 py-2.5 rounded-full font-bold text-[11px] uppercase tracking-widest">+ Add Entry</button>
         </div>
@@ -376,7 +388,6 @@ export default function App() {
             { label: 'Intv', val: jobs.filter(j => (j.status || "").trim().toLowerCase() === 'interviewing').length, filter: 'interviewing', type: 'status' },
           ].map((stat) => {
             const isActive = stat.type === 'status' ? statusFilter === stat.filter : dateFilter === stat.filter;
-
             return (
               <button key={stat.label} onClick={() => handleStatClick(stat.type, stat.filter)}
                 className={`p-6 rounded-[32px] text-left transition-all border-2 ${ isActive ? 'bg-[#f0fdf4] border-[#86efac]' : 'bg-white border-transparent' } shadow-sm`}>
@@ -422,6 +433,16 @@ export default function App() {
               {f.label} <span className="opacity-50">{f.count}</span>
             </button>
           ))}
+          <button onClick={() => setShowEmployers(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border bg-white border-slate-200 text-slate-500 hover:border-slate-300">
+            Employers <span className="opacity-50">{employerGroups.length}</span>
+          </button>
+          {employerFilter && (
+            <button onClick={() => { setEmployerFilter(null); setCurrentPage(1); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold transition-all border bg-black border-black text-white">
+              {(employerGroups.find(g => g.key === employerFilter)?.display || employerFilter)} <span className="opacity-60">✕</span>
+            </button>
+          )}
           {isFiltered && (
             <button onClick={resetFilters} className="px-4 py-2 rounded-full text-[10px] font-black text-rose-500 uppercase border border-rose-100 bg-rose-50 hover:bg-rose-100 transition-colors">
               Reset
@@ -476,6 +497,32 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showEmployers && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setShowEmployers(false)}>
+          <div className="bg-white w-full max-w-md rounded-[40px] p-8 shadow-2xl my-auto max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-black mb-2 uppercase text-center tracking-tighter">Employers</h2>
+            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{employerGroups.length} employers • tap one to filter</p>
+            <div className="overflow-y-auto space-y-2 pr-1">
+              {employerGroups.map(g => {
+                const atCap = g.active >= 2 && g.key !== "u.s. bank";
+                return (
+                  <button key={g.key} onClick={() => { setEmployerFilter(g.key); setShowEmployers(false); setCurrentPage(1); }}
+                    className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-4 py-3 transition-all text-left">
+                    <span className="font-bold text-sm text-slate-800 truncate">{g.display}</span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
+                      <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{g.active} active</span>
+                      <span className="text-[10px] font-bold text-slate-400">{g.total} total</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setShowEmployers(false)} className="w-full py-3 mt-4 text-[10px] font-black text-slate-400 uppercase">Close</button>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
@@ -545,7 +592,7 @@ export default function App() {
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Loc</label>
                   <select className="w-full bg-slate-50 border-none rounded-2xl px-2 py-3.5 text-[10px] font-bold" value={editingJob?.location || 'Remote'} onChange={e => setEditingJob({...editingJob, location: e.target.value})}>
-                    <option>Remote</option><option>Local</option><option>Hybrid</option>
+                    <option>Remote</option><option>Local</option><option>Hybrid</option><option>On-site</option>
                   </select>
                 </div>
                 <div className="space-y-1">
