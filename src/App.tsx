@@ -61,6 +61,10 @@ export default function App() {
   const [needFilter, setNeedFilter] = useState('all');
   const [employerFilter, setEmployerFilter] = useState<string | null>(null);
   const [showEmployers, setShowEmployers] = useState(false);
+  const [employerSort, setEmployerSort] = useState('knoxville');
+  const [employerSearch, setEmployerSearch] = useState('');
+  const [employerKnoxOnly, setEmployerKnoxOnly] = useState(false);
+  const [employerCapOnly, setEmployerCapOnly] = useState(false);
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -204,6 +208,31 @@ export default function App() {
     arr.sort((a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display));
     return arr;
   }, [jobs]);
+
+  const employerAtCap = (g: { key: string; active: number }) => g.active >= 2 && g.key !== "u.s. bank";
+
+  const closeEmployers = () => {
+    setShowEmployers(false);
+    setEmployerSearch(''); setEmployerSort('knoxville');
+    setEmployerKnoxOnly(false); setEmployerCapOnly(false);
+  };
+
+  // Employers panel: search + sort + filters applied to the groups
+  const visibleEmployers = useMemo(() => {
+    const q = employerSearch.trim().toLowerCase();
+    const arr = employerGroups.filter(g =>
+      (!q || g.display.toLowerCase().includes(q) || g.key.includes(q)) &&
+      (!employerKnoxOnly || g.local > 0) &&
+      (!employerCapOnly || employerAtCap(g))
+    );
+    const sorters: Record<string, (a: typeof arr[0], b: typeof arr[0]) => number> = {
+      knoxville: (a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display),
+      total: (a, b) => b.total - a.total || a.display.localeCompare(b.display),
+      active: (a, b) => b.active - a.active || b.total - a.total || a.display.localeCompare(b.display),
+      alpha: (a, b) => a.display.localeCompare(b.display),
+    };
+    return [...arr].sort(sorters[employerSort] || sorters.knoxville);
+  }, [employerGroups, employerSearch, employerKnoxOnly, employerCapOnly, employerSort]);
 
   const dateMetrics = useMemo(() => {
     const today = new Date();
@@ -500,15 +529,40 @@ export default function App() {
       </main>
 
       {showEmployers && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setShowEmployers(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={closeEmployers}>
           <div className="bg-white w-full max-w-md rounded-[40px] p-8 shadow-2xl my-auto max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-black mb-2 uppercase text-center tracking-tighter">Employers</h2>
-            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{employerGroups.length} employers • tap one to filter</p>
+            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{visibleEmployers.length} of {employerGroups.length} employers • tap one to filter</p>
+            <input placeholder="Search employers..." value={employerSearch} onChange={e => setEmployerSearch(e.target.value)}
+              className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm outline-none mb-3" />
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { label: 'Knoxville first', val: 'knoxville' },
+                { label: 'Most apps', val: 'total' },
+                { label: 'Most active', val: 'active' },
+                { label: 'A–Z', val: 'alpha' },
+              ].map(s => (
+                <button key={s.val} onClick={() => setEmployerSort(s.val)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerSort === s.val ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                  {s.label}
+                </button>
+              ))}
+              <button onClick={() => setEmployerKnoxOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerKnoxOnly ? 'bg-sky-600 border-sky-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                Knoxville only
+              </button>
+              <button onClick={() => setEmployerCapOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerCapOnly ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                At cap
+              </button>
+            </div>
             <div className="overflow-y-auto space-y-2 pr-1">
-              {employerGroups.map(g => {
-                const atCap = g.active >= 2 && g.key !== "u.s. bank";
+              {visibleEmployers.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm italic">No employers match.</div>
+              ) : visibleEmployers.map(g => {
+                const atCap = employerAtCap(g);
                 return (
-                  <button key={g.key} onClick={() => { setEmployerFilter(g.key); setShowEmployers(false); setCurrentPage(1); }}
+                  <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
                     className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-4 py-3 transition-all text-left">
                     <span className="font-bold text-sm text-slate-800 truncate">{g.display}</span>
                     <span className="flex items-center gap-2 shrink-0">
@@ -521,7 +575,7 @@ export default function App() {
                 );
               })}
             </div>
-            <button onClick={() => setShowEmployers(false)} className="w-full py-3 mt-4 text-[10px] font-black text-slate-400 uppercase">Close</button>
+            <button onClick={closeEmployers} className="w-full py-3 mt-4 text-[10px] font-black text-slate-400 uppercase">Close</button>
           </div>
         </div>
       )}
