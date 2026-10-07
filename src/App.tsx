@@ -533,12 +533,13 @@ export default function App() {
       </main>
 
       {showEmployers && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={closeEmployers}>
-          <div className="bg-white w-full max-w-md rounded-[40px] p-8 shadow-2xl my-auto max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-black mb-2 uppercase text-center tracking-tighter">Employers</h2>
-            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{visibleEmployers.length} of {employerGroups.length} employers • tap one to filter</p>
+        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto">
+          <div className="w-full max-w-3xl mx-auto px-6 py-8 sm:px-10 min-h-full">
+            <button onClick={closeEmployers} className="mb-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">← Back to applications</button>
+            <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">Employers</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{visibleEmployers.length} of {employerGroups.length} employers • tap one to filter</p>
             <input placeholder="Search employers..." value={employerSearch} onChange={e => setEmployerSearch(e.target.value)}
-              className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm outline-none mb-3" />
+              className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-base outline-none mb-4" />
             <div className="flex flex-wrap gap-2 mb-4">
               {[
                 { label: 'Knoxville first', val: 'knoxville' },
@@ -560,15 +561,15 @@ export default function App() {
                 At cap
               </button>
             </div>
-            <div className="overflow-y-auto space-y-2 pr-1">
+            <div className="space-y-2">
               {visibleEmployers.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-sm italic">No employers match.</div>
               ) : visibleEmployers.map(g => {
                 const atCap = employerAtCap(g);
                 return (
                   <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
-                    className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-4 py-3 transition-all text-left">
-                    <span className="font-bold text-sm text-slate-800 truncate">{g.display}</span>
+                    className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-5 py-4 transition-all text-left">
+                    <span className="font-bold text-base text-slate-800 truncate">{g.display}</span>
                     <span className="flex items-center gap-2 shrink-0">
                       {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
@@ -579,7 +580,7 @@ export default function App() {
                 );
               })}
             </div>
-            <button onClick={closeEmployers} className="w-full py-3 mt-4 text-[10px] font-black text-slate-400 uppercase">Close</button>
+            <button onClick={closeEmployers} className="w-full py-4 mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">← Back to applications</button>
           </div>
         </div>
       )}
