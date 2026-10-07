@@ -191,6 +191,7 @@ export default function App() {
     "first horizon bank",
     "regal",
     "tennessee valley authority",
+    "u.s. bank",
   ]);
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
