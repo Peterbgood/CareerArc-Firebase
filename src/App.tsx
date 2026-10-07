@@ -178,7 +178,7 @@ export default function App() {
     "pilot.com": "pilot",
     "university of tennessee foundation, inc.": "university of tennessee",
     "university of tennessee, knoxville": "university of tennessee",
-    "petsafe brands": "petsafe",
+    "petsafe brands": "radio systems",
   };
   // Big Knoxville employers — premium gold cards on the Employers page
   const BIG_KNOXVILLE_EMPLOYERS = new Set([
@@ -186,7 +186,7 @@ export default function App() {
     "pilot",
     "covenant health",
     "university of tennessee",
-    "petsafe",
+    "radio systems",
     "cirrus",
     "first horizon bank",
     "regal",
@@ -257,7 +257,7 @@ export default function App() {
       alpha: (a, b) => a.display.localeCompare(b.display),
     };
     return [...arr].sort(sorters[employerSort] || sorters.knoxville);
-  }, [employerGroups, employerSearch, employerKnoxOnly, employerCapOnly, employerSort]);
+  }, [employerGroups, employerSearch, employerKnoxOnly, employerCapOnly, employerBigOnly, employerSort]);
 
   const dateMetrics = useMemo(() => {
     const today = new Date();
