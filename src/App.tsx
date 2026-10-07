@@ -192,6 +192,9 @@ export default function App() {
     "regal",
     "tennessee valley authority",
     "u.s. bank",
+    "cgi",
+    "kpmg",
+    "allstate",
   ]);
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
