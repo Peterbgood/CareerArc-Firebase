@@ -593,15 +593,17 @@ export default function App() {
                 const atCap = employerAtCap(g);
                 return (
                   <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
-                    className={`w-full flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-all text-left border-2 ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
-                    <span className="font-bold text-base text-slate-800 truncate">{g.display}</span>
-                    <span className="flex items-center gap-2 shrink-0">
+                    className={`w-full rounded-2xl px-5 py-4 transition-all text-left border-2 ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
+                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                      <span className="font-bold text-lg text-slate-800 leading-tight">{g.display}</span>
+                      <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1 shrink-0">{g.active} active</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
                       {g.big && <span className="text-[9px] font-black uppercase text-amber-600">★ Big Knoxville</span>}
                       {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
-                      <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{g.active} active</span>
                       <span className="text-[10px] font-bold text-slate-400">{g.total} total</span>
-                    </span>
+                    </div>
                   </button>
                 );
               })}
