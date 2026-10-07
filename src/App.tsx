@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { initializeApp } from "firebase/app";
 import { 
-  getFirestore, collection, onSnapshot, query, deleteDoc, doc, updateDoc, addDoc 
+  getFirestore, collection, onSnapshot, query, deleteDoc, doc, updateDoc, addDoc, setDoc 
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -115,6 +115,29 @@ export default function App() {
     return () => unsubscribe();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const q = query(collection(db, "employer_stars"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const s = new Set<string>();
+      snapshot.docs.forEach(d => {
+        if (d.data().starred !== false) {
+          try { s.add(decodeURIComponent(d.id)); } catch { s.add(d.id); }
+        }
+      });
+      setStarredEmployers(s);
+    }, (error) => { console.error("Stars sync error:", error); });
+    return () => unsubscribe();
+  }, [isAuthenticated]);
+
+  const toggleStar = async (key: string) => {
+    const ref = doc(db, "employer_stars", encodeURIComponent(key));
+    try {
+      if (starredEmployers.has(key)) await deleteDoc(ref);
+      else await setDoc(ref, { starred: true });
+    } catch (e) { console.error("Star toggle failed:", e); }
+  };
+
   const downloadCSV = () => {
     if (jobs.length === 0) return;
     const headers = ["Company", "Brand", "Title", "Date", "Status", "Location", "Type", "Salary", "Job ID", "Confirmation", "Notes", "Needs Action", "URL"];
@@ -180,22 +203,9 @@ export default function App() {
     "university of tennessee, knoxville": "university of tennessee",
     "petsafe brands": "radio systems",
   };
-  // Big Knoxville employers — premium gold cards on the Employers page
-  const BIG_KNOXVILLE_EMPLOYERS = new Set([
-    "clayton",
-    "pilot",
-    "covenant health",
-    "university of tennessee",
-    "radio systems",
-    "cirrus",
-    "first horizon bank",
-    "regal",
-    "tennessee valley authority",
-    "u.s. bank",
-    "cgi",
-    "kpmg",
-    "allstate",
-  ]);
+  // Starred (favorite) employers live in Firestore (employer_stars collection),
+  // toggled from the Employers page — no code change needed to flag one.
+  const [starredEmployers, setStarredEmployers] = useState<Set<string>>(new Set());
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
   const isActiveJob = (j: any) => {
@@ -230,11 +240,11 @@ export default function App() {
     const arr = [...groups.values()].map(g => {
       let best = g.key, bestN = -1;
       g.spells.forEach((n, s) => { if (n > bestN) { bestN = n; best = s; } });
-      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local, big: BIG_KNOXVILLE_EMPLOYERS.has(g.key) };
+      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local, big: starredEmployers.has(g.key) };
     });
     arr.sort((a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display));
     return arr;
-  }, [jobs]);
+  }, [jobs, starredEmployers]);
 
   const employerAtCap = (g: { key: string; active: number }) => g.active >= 2 && g.key !== "u.s. bank";
 
@@ -586,7 +596,7 @@ export default function App() {
               </button>
               <button onClick={() => setEmployerBigOnly(v => !v)}
                 className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerBigOnly ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-600 hover:border-amber-400'}`}>
-                ★ Big Knoxville
+                ★ Starred
               </button>
             </div>
             <div className="space-y-2">
@@ -595,19 +605,25 @@ export default function App() {
               ) : visibleEmployers.map(g => {
                 const atCap = employerAtCap(g);
                 return (
-                  <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
-                    className={`w-full rounded-2xl px-5 py-4 transition-all text-left border-2 ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
+                  <div key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
+                    className={`w-full rounded-2xl px-5 py-4 transition-all text-left border-2 cursor-pointer ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
                     <div className="flex items-center justify-between gap-3 mb-1.5">
-                      <span className="font-bold text-lg text-slate-800 leading-tight">{g.display}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button onClick={(e) => { e.stopPropagation(); toggleStar(g.key); }} aria-label={g.big ? 'Unstar employer' : 'Star employer'}
+                          className={`shrink-0 text-2xl leading-none transition-all active:scale-90 ${g.big ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}>
+                          {g.big ? '★' : '☆'}
+                        </button>
+                        <span className="font-bold text-lg text-slate-800 leading-tight">{g.display}</span>
+                      </div>
                       <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1 shrink-0">{g.active} active</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {g.big && <span className="text-[9px] font-black uppercase text-amber-600">★ Big Knoxville</span>}
+                      {g.big && <span className="text-[9px] font-black uppercase text-amber-600">★ Starred</span>}
                       {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
                       <span className="text-[10px] font-bold text-slate-400">{g.total} total</span>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
