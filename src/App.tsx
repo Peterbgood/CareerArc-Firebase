@@ -171,6 +171,7 @@ export default function App() {
     "clayton homes": "clayton",
     "vanderbilt mortgage and finance, inc.": "clayton",
     "vanderbilt mortgage and finance": "clayton",
+    "21st mortgage": "clayton",
   };
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
