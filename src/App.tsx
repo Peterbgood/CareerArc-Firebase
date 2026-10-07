@@ -65,6 +65,7 @@ export default function App() {
   const [employerSearch, setEmployerSearch] = useState('');
   const [employerKnoxOnly, setEmployerKnoxOnly] = useState(false);
   const [employerCapOnly, setEmployerCapOnly] = useState(false);
+  const [employerBigOnly, setEmployerBigOnly] = useState(false);
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -172,7 +173,25 @@ export default function App() {
     "vanderbilt mortgage and finance, inc.": "clayton",
     "vanderbilt mortgage and finance": "clayton",
     "21st mortgage": "clayton",
+    "pilot flying j": "pilot",
+    "pilot company": "pilot",
+    "pilot.com": "pilot",
+    "university of tennessee foundation, inc.": "university of tennessee",
+    "university of tennessee, knoxville": "university of tennessee",
+    "petsafe brands": "petsafe",
   };
+  // Big Knoxville employers — premium gold cards on the Employers page
+  const BIG_KNOXVILLE_EMPLOYERS = new Set([
+    "clayton",
+    "pilot",
+    "covenant health",
+    "university of tennessee",
+    "petsafe",
+    "cirrus",
+    "first horizon bank",
+    "regal",
+    "tennessee valley authority",
+  ]);
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
   const isActiveJob = (j: any) => {
@@ -207,7 +226,7 @@ export default function App() {
     const arr = [...groups.values()].map(g => {
       let best = g.key, bestN = -1;
       g.spells.forEach((n, s) => { if (n > bestN) { bestN = n; best = s; } });
-      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local };
+      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local, big: BIG_KNOXVILLE_EMPLOYERS.has(g.key) };
     });
     arr.sort((a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display));
     return arr;
@@ -218,7 +237,7 @@ export default function App() {
   const closeEmployers = () => {
     setShowEmployers(false);
     setEmployerSearch(''); setEmployerSort('knoxville');
-    setEmployerKnoxOnly(false); setEmployerCapOnly(false);
+    setEmployerKnoxOnly(false); setEmployerCapOnly(false); setEmployerBigOnly(false);
   };
 
   // Employers panel: search + sort + filters applied to the groups
@@ -227,7 +246,8 @@ export default function App() {
     const arr = employerGroups.filter(g =>
       (!q || g.display.toLowerCase().includes(q) || g.key.includes(q)) &&
       (!employerKnoxOnly || g.local > 0) &&
-      (!employerCapOnly || employerAtCap(g))
+      (!employerCapOnly || employerAtCap(g)) &&
+      (!employerBigOnly || g.big)
     );
     const sorters: Record<string, (a: typeof arr[0], b: typeof arr[0]) => number> = {
       knoxville: (a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display),
@@ -516,7 +536,7 @@ export default function App() {
                   )}
                   <div className="flex flex-wrap gap-2">
                     <span className="text-[9px] font-black text-black bg-slate-50 px-3 py-1.5 rounded-xl uppercase">{getDaysAgo(job.date)}</span>
-                    <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : (job.status || "").toLowerCase().includes('rejected') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
+                    <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : ((job.status || "").toLowerCase().includes('rejected') || (job.status || "").toLowerCase() === 'ghosted') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
                     <span className="text-[9px] font-bold text-slate-400 self-center ml-1">{job.location} • {job.type}</span>
                   </div>
               </div>
@@ -560,6 +580,10 @@ export default function App() {
                 className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerCapOnly ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                 At cap
               </button>
+              <button onClick={() => setEmployerBigOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerBigOnly ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-600 hover:border-amber-400'}`}>
+                ★ Big Knoxville
+              </button>
             </div>
             <div className="space-y-2">
               {visibleEmployers.length === 0 ? (
@@ -568,9 +592,10 @@ export default function App() {
                 const atCap = employerAtCap(g);
                 return (
                   <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
-                    className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-5 py-4 transition-all text-left">
+                    className={`w-full flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-all text-left border-2 ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
                     <span className="font-bold text-base text-slate-800 truncate">{g.display}</span>
                     <span className="flex items-center gap-2 shrink-0">
+                      {g.big && <span className="text-[9px] font-black uppercase text-amber-600">★ Big Knoxville</span>}
                       {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
                       <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{g.active} active</span>
