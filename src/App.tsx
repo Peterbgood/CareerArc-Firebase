@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { initializeApp } from "firebase/app";
 import { 
-  getFirestore, collection, onSnapshot, query, deleteDoc, doc, updateDoc, addDoc 
+  getFirestore, collection, onSnapshot, query, deleteDoc, doc, updateDoc, addDoc, setDoc 
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -65,6 +65,7 @@ export default function App() {
   const [employerSearch, setEmployerSearch] = useState('');
   const [employerKnoxOnly, setEmployerKnoxOnly] = useState(false);
   const [employerCapOnly, setEmployerCapOnly] = useState(false);
+  const [employerBigOnly, setEmployerBigOnly] = useState(false);
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -113,6 +114,29 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const q = query(collection(db, "employer_stars"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const s = new Set<string>();
+      snapshot.docs.forEach(d => {
+        if (d.data().starred !== false) {
+          try { s.add(decodeURIComponent(d.id)); } catch { s.add(d.id); }
+        }
+      });
+      setStarredEmployers(s);
+    }, (error) => { console.error("Stars sync error:", error); });
+    return () => unsubscribe();
+  }, [isAuthenticated]);
+
+  const toggleStar = async (key: string) => {
+    const ref = doc(db, "employer_stars", encodeURIComponent(key));
+    try {
+      if (starredEmployers.has(key)) await deleteDoc(ref);
+      else await setDoc(ref, { starred: true });
+    } catch (e) { console.error("Star toggle failed:", e); }
+  };
 
   const downloadCSV = () => {
     if (jobs.length === 0) return;
@@ -171,7 +195,17 @@ export default function App() {
     "clayton homes": "clayton",
     "vanderbilt mortgage and finance, inc.": "clayton",
     "vanderbilt mortgage and finance": "clayton",
+    "21st mortgage": "clayton",
+    "pilot flying j": "pilot",
+    "pilot company": "pilot",
+    "pilot.com": "pilot",
+    "university of tennessee foundation, inc.": "university of tennessee",
+    "university of tennessee, knoxville": "university of tennessee",
+    "petsafe brands": "radio systems",
   };
+  // Starred (favorite) employers live in Firestore (employer_stars collection),
+  // toggled from the Employers page — no code change needed to flag one.
+  const [starredEmployers, setStarredEmployers] = useState<Set<string>>(new Set());
   const canonicalName = (s: any) => COMPANY_ALIASES[normName(s)] || normName(s);
 
   const isActiveJob = (j: any) => {
@@ -206,18 +240,18 @@ export default function App() {
     const arr = [...groups.values()].map(g => {
       let best = g.key, bestN = -1;
       g.spells.forEach((n, s) => { if (n > bestN) { bestN = n; best = s; } });
-      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local };
+      return { key: g.key, display: best, total: g.total, active: g.active, local: g.local, big: starredEmployers.has(g.key) };
     });
     arr.sort((a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display));
     return arr;
-  }, [jobs]);
+  }, [jobs, starredEmployers]);
 
   const employerAtCap = (g: { key: string; active: number }) => g.active >= 2 && g.key !== "u.s. bank";
 
   const closeEmployers = () => {
     setShowEmployers(false);
     setEmployerSearch(''); setEmployerSort('knoxville');
-    setEmployerKnoxOnly(false); setEmployerCapOnly(false);
+    setEmployerKnoxOnly(false); setEmployerCapOnly(false); setEmployerBigOnly(false);
   };
 
   // Employers panel: search + sort + filters applied to the groups
@@ -226,7 +260,8 @@ export default function App() {
     const arr = employerGroups.filter(g =>
       (!q || g.display.toLowerCase().includes(q) || g.key.includes(q)) &&
       (!employerKnoxOnly || g.local > 0) &&
-      (!employerCapOnly || employerAtCap(g))
+      (!employerCapOnly || employerAtCap(g)) &&
+      (!employerBigOnly || g.big)
     );
     const sorters: Record<string, (a: typeof arr[0], b: typeof arr[0]) => number> = {
       knoxville: (a, b) => ((b.local > 0 ? 1 : 0) - (a.local > 0 ? 1 : 0)) || b.total - a.total || a.display.localeCompare(b.display),
@@ -235,7 +270,7 @@ export default function App() {
       alpha: (a, b) => a.display.localeCompare(b.display),
     };
     return [...arr].sort(sorters[employerSort] || sorters.knoxville);
-  }, [employerGroups, employerSearch, employerKnoxOnly, employerCapOnly, employerSort]);
+  }, [employerGroups, employerSearch, employerKnoxOnly, employerCapOnly, employerBigOnly, employerSort]);
 
   const dateMetrics = useMemo(() => {
     const today = new Date();
@@ -515,7 +550,7 @@ export default function App() {
                   )}
                   <div className="flex flex-wrap gap-2">
                     <span className="text-[9px] font-black text-black bg-slate-50 px-3 py-1.5 rounded-xl uppercase">{getDaysAgo(job.date)}</span>
-                    <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : (job.status || "").toLowerCase().includes('rejected') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
+                    <span className={`text-[9px] px-3 py-1.5 rounded-xl font-black uppercase ${ (job.status || "").toLowerCase().includes('interviewed') ? 'bg-orange-100 text-orange-700' : ((job.status || "").toLowerCase().includes('rejected') || (job.status || "").toLowerCase() === 'ghosted') ? 'bg-rose-100 text-rose-700' : (job.status || "").toLowerCase() === 'interviewing' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500' }`}>{job.status}</span>
                     <span className="text-[9px] font-bold text-slate-400 self-center ml-1">{job.location} • {job.type}</span>
                   </div>
               </div>
@@ -532,12 +567,13 @@ export default function App() {
       </main>
 
       {showEmployers && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={closeEmployers}>
-          <div className="bg-white w-full max-w-md rounded-[40px] p-8 shadow-2xl my-auto max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-black mb-2 uppercase text-center tracking-tighter">Employers</h2>
-            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{visibleEmployers.length} of {employerGroups.length} employers • tap one to filter</p>
+        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto">
+          <div className="w-full max-w-3xl mx-auto px-6 py-8 sm:px-10 min-h-full">
+            <button onClick={closeEmployers} className="mb-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">← Back to applications</button>
+            <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">Employers</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{visibleEmployers.length} of {employerGroups.length} employers • tap one to filter</p>
             <input placeholder="Search employers..." value={employerSearch} onChange={e => setEmployerSearch(e.target.value)}
-              className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm outline-none mb-3" />
+              className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-base outline-none mb-4" />
             <div className="flex flex-wrap gap-2 mb-4">
               {[
                 { label: 'Knoxville first', val: 'knoxville' },
@@ -558,27 +594,40 @@ export default function App() {
                 className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerCapOnly ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                 At cap
               </button>
+              <button onClick={() => setEmployerBigOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${employerBigOnly ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-600 hover:border-amber-400'}`}>
+                ★ Starred
+              </button>
             </div>
-            <div className="overflow-y-auto space-y-2 pr-1">
+            <div className="space-y-2">
               {visibleEmployers.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-sm italic">No employers match.</div>
               ) : visibleEmployers.map(g => {
                 const atCap = employerAtCap(g);
                 return (
-                  <button key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
-                    className="w-full flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-2xl px-4 py-3 transition-all text-left">
-                    <span className="font-bold text-sm text-slate-800 truncate">{g.display}</span>
-                    <span className="flex items-center gap-2 shrink-0">
+                  <div key={g.key} onClick={() => { setEmployerFilter(g.key); closeEmployers(); setCurrentPage(1); }}
+                    className={`w-full rounded-2xl px-5 py-4 transition-all text-left border-2 cursor-pointer ${g.big ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 shadow-[0_4px_16px_-6px_rgba(217,119,6,0.45)] hover:from-amber-100 hover:to-yellow-100' : 'bg-slate-50 hover:bg-slate-100 border-transparent'}`}>
+                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button onClick={(e) => { e.stopPropagation(); toggleStar(g.key); }} aria-label={g.big ? 'Unstar employer' : 'Star employer'}
+                          className={`shrink-0 text-2xl leading-none transition-all active:scale-90 ${g.big ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}>
+                          {g.big ? '★' : '☆'}
+                        </button>
+                        <span className="font-bold text-lg text-slate-800 leading-tight">{g.display}</span>
+                      </div>
+                      <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1 shrink-0">{g.active} active</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {g.big && <span className="text-[9px] font-black uppercase text-amber-600">★ Starred</span>}
                       {g.local > 0 && <span className="text-[9px] font-black uppercase text-sky-600">Knoxville</span>}
                       {atCap && <span className="text-[9px] font-black uppercase text-rose-500">at cap</span>}
-                      <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{g.active} active</span>
                       <span className="text-[10px] font-bold text-slate-400">{g.total} total</span>
-                    </span>
-                  </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
-            <button onClick={closeEmployers} className="w-full py-3 mt-4 text-[10px] font-black text-slate-400 uppercase">Close</button>
+            <button onClick={closeEmployers} className="w-full py-4 mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">← Back to applications</button>
           </div>
         </div>
       )}
