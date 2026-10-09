@@ -544,7 +544,7 @@ export default function App() {
                       <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-black shrink-0 mt-4">P</div>
                       <div className="flex-1 min-w-0 w-full">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Note</div>
-                        <div className="w-full bg-slate-50 border border-slate-200/70 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-600 whitespace-pre-wrap">{job.notes}</div>
+                        <div className="w-full bg-slate-50 border border-slate-200/70 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-600 whitespace-pre-wrap break-words overflow-hidden">{job.notes}</div>
                       </div>
                     </div>
                   )}
