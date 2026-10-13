@@ -89,7 +89,7 @@ export default function App() {
   }, [pinInput]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (isAuthenticated) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') { 
         if (pinInput.length < 4) setPinInput(prev => prev + e.key); 
@@ -202,6 +202,7 @@ export default function App() {
     "university of tennessee foundation, inc.": "university of tennessee",
     "university of tennessee, knoxville": "university of tennessee",
     "petsafe brands": "radio systems",
+    "elavon": "u.s. bank",
   };
   // Starred (favorite) employers live in Firestore (employer_stars collection),
   // toggled from the Employers page — no code change needed to flag one.
