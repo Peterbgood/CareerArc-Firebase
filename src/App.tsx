@@ -141,22 +141,24 @@ export default function App() {
   const downloadCSV = () => {
     if (jobs.length === 0) return;
     const headers = ["Company", "Brand", "Title", "Date", "Status", "Location", "Type", "Salary", "Job ID", "Confirmation", "Notes", "Needs Action", "URL"];
+    const s = (v: any) => (v === null || v === undefined ? "" : String(v));
+    const q = (v: any) => `\"${s(v).replace(/\"/g, '\"\"')}\"`;
     const csvContent = [
       headers.join(","),
       ...jobs.map(j => [
-        `"${(j.company || "").replace(/"/g, '""')}"`,
-        `"${(j.brand || "").replace(/"/g, '""')}"`,
-        `"${(j.title || "").replace(/"/g, '""')}"`,
-        j.date,
-        j.status,
-        j.location,
-        j.type,
-        `"${(j.salary || "").replace(/"/g, '""')}"`,
-        `"${(j.jobId || "").replace(/"/g, '""')}"`,
-        `"${(j.confirmNo || "").replace(/"/g, '""')}"`,
-        `"${(j.notes || "").replace(/"/g, '""')}"`,
+        q(j.company),
+        q(j.brand),
+        q(j.title),
+        s(j.date),
+        s(j.status),
+        s(j.location),
+        s(j.type),
+        q(j.salary),
+        q(j.jobId),
+        q(j.confirmNo),
+        q(j.notes),
         j.needsAction ? "yes" : "",
-        j.url
+        s(j.url)
       ].join(","))
     ].join("\n");
 
@@ -168,6 +170,7 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const resetFilters = () => {
